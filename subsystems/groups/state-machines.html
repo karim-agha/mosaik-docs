@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-b8260048.js";
+            window.path_to_searchindex_js = "../../searchindex-2279e034.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-afb5d9f0.js"></script>
+        <script src="../../toc-546f1084.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -183,7 +183,7 @@
                         <h1 id="state-machines"><a class="header" href="#state-machines">State Machines</a></h1>
 <p>Every group runs a replicated state machine (RSM) that processes commands and answers queries. The <code>StateMachine</code> trait is the primary extension point for application logic.</p>
 <h2 id="the-statemachine-trait"><a class="header" href="#the-statemachine-trait">The StateMachine Trait</a></h2>
-<pre><code class="language-rust ignore">pub trait StateMachine: Sized + Send + 'static {
+<pre><code class="language-rust ignore">pub trait StateMachine: Sized + Send + Sync + 'static {
     type Command: Command;       // Mutating operations
     type Query: Query;           // Read-only operations
     type QueryResult: QueryResult; // Query responses
@@ -196,7 +196,7 @@
 
     // Optional overrides
     fn apply_batch(&amp;mut self, commands: impl IntoIterator&lt;Item = Self::Command&gt;, ctx: &amp;dyn ApplyContext) { ... }
-    fn consensus_config(&amp;self) -&gt; Option&lt;ConsensusConfig&gt; { None }
+    fn leadership_preference(&amp;self) -&gt; LeadershipPreference { LeadershipPreference::Normal }
 }</code></pre>
 <h3 id="associated-types"><a class="header" href="#associated-types">Associated Types</a></h3>
 <div class="table-wrapper">
@@ -315,12 +315,38 @@ impl StateMachine for NoOp {
 }</code></pre>
 <p><code>LogReplaySync</code> replays committed log entries to bring the follower’s state machine up to date. For advanced use cases (e.g., snapshot-based sync), implement the <code>StateSync</code> trait directly.</p>
 <p>See the <a href="../internals/state-sync.html">State Sync</a> deep dive for details.</p>
-<h2 id="consensus-config-hints"><a class="header" href="#consensus-config-hints">Consensus Config Hints</a></h2>
-<p>A state machine can provide a default <code>ConsensusConfig</code>:</p>
-<pre><code class="language-rust ignore">fn consensus_config(&amp;self) -&gt; Option&lt;ConsensusConfig&gt; {
-    Some(ConsensusConfig::default().deprioritize_leadership())
+<h2 id="leadership-preference"><a class="header" href="#leadership-preference">Leadership Preference</a></h2>
+<p>A state machine can declare its preference for assuming leadership within
+the group by overriding <code>leadership_preference()</code>. This is a per-node
+setting – different nodes in the same group can return different values
+without affecting the <code>GroupId</code>.</p>
+<pre><code class="language-rust ignore">use mosaik::LeadershipPreference;
+
+fn leadership_preference(&amp;self) -&gt; LeadershipPreference {
+    LeadershipPreference::Observer
 }</code></pre>
-<p>This is used when the builder does not specify an explicit config. It can be overridden by <code>with_consensus_config()</code> on the builder.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variant</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Normal</code> (default)</td><td>Standard Raft behavior – participates in elections as a candidate</td></tr>
+<tr><td><code>Reluctant { factor: u32 }</code></td><td>Longer election timeouts (multiplied by <code>factor</code>), can still be elected</td></tr>
+<tr><td><code>Observer</code></td><td>Never self-nominates as candidate; still votes and replicates log</td></tr>
+</tbody>
+</table>
+</div>
+<p>The convenience constructor <code>LeadershipPreference::reluctant()</code> creates a
+<code>Reluctant</code> variant with the default factor of 3.</p>
+<blockquote>
+<p><strong>Liveness warning:</strong> If every node in a group returns <code>Observer</code>, no
+leader can ever be elected and the group will be unable to make progress.
+Ensure at least one node has <code>Normal</code> or <code>Reluctant</code> preference.</p>
+</blockquote>
+<p>This mechanism is used internally by <a href="../collections/writer-reader.html">collection readers</a>,
+which return <code>Observer</code> so that leadership stays on writer nodes where
+writes are handled directly rather than being forwarded.</p>
 <h2 id="storage"><a class="header" href="#storage">Storage</a></h2>
 <p>Commands are persisted in a log via the <code>Storage</code> trait:</p>
 <pre><code class="language-rust ignore">pub trait Storage&lt;C: Command&gt;: Send + 'static {

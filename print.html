@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-b8260048.js";
+            window.path_to_searchindex_js = "searchindex-2279e034.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-afb5d9f0.js"></script>
+        <script src="toc-546f1084.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -202,8 +202,8 @@
 ├──────────┬──────────┬──────────┬────────────────┤
 │ Discovery│ Streams  │  Groups  │  Collections   │
 │  gossip, │  typed   │   Raft   │  Map/Vec/Set/  │
-│  catalog │ pub/sub  │ consensus│ PriorityQueue  │
-│          │          │  groups  │                │
+│  catalog │ pub/sub  │ consensus│  Register/Once │
+│          │          │  groups  │  PriorityQueue │
 └──────────┴──────────┴──────────┴────────────────┘
 </code></pre>
 <ul>
@@ -211,7 +211,7 @@
 <li><strong>Discovery</strong> uses gossip to maintain a catalog of all peers, their capabilities, and their available streams/groups.</li>
 <li><strong>Streams</strong> provides typed, async pub/sub channels. Any serializable Rust type can be streamed between nodes.</li>
 <li><strong>Groups</strong> implements Raft consensus for clusters of nodes that need shared state and leader election.</li>
-<li><strong>Collections</strong> builds on Groups to offer replicated data structures (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>PriorityQueue</code>) that stay synchronized across nodes.</li>
+<li><strong>Collections</strong> builds on Groups to offer replicated data structures (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>, <code>PriorityQueue</code>) that stay synchronized across nodes.</li>
 </ul>
 <h2 id="who-should-read-this-book"><a class="header" href="#who-should-read-this-book">Who Should Read This Book</a></h2>
 <p>This book serves two audiences:</p>
@@ -256,7 +256,7 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 <tr><td><strong>Self-organizing</strong></td><td>Nodes discover each other via gossip and form the correct topology automatically</td></tr>
 <tr><td><strong>Typed pub/sub</strong></td><td>Stream any serializable Rust type between nodes with backpressure and filtering</td></tr>
 <tr><td><strong>Raft consensus</strong></td><td>Form availability groups with leader election and replicated state machines</td></tr>
-<tr><td><strong>Replicated collections</strong></td><td>Distributed <code>Map</code>, <code>Vec</code>, <code>Set</code>, and <code>PriorityQueue</code> with strong consistency</td></tr>
+<tr><td><strong>Replicated collections</strong></td><td>Distributed <code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>, and <code>PriorityQueue</code> with strong consistency</td></tr>
 <tr><td><strong>QUIC transport</strong></td><td>Built on <a href="https://github.com/n0-computer/iroh">iroh</a> for modern, encrypted P2P networking</td></tr>
 <tr><td><strong>Relay support</strong></td><td>Nodes behind NAT can communicate via relay servers with automatic hole-punching</td></tr>
 </tbody>
@@ -271,7 +271,8 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 │  Discovery  │   Streams   │   Groups    │Collections │
 │  Gossip &amp;   │  Typed      │  Raft       │ Replicated │
 │  peer       │  pub/sub    │  consensus  │ Map, Vec,  │
-│  catalog    │  channels   │  groups     │ Set, DEPQ  │
+│  catalog    │  channels   │  groups     │ Set, Reg,  │
+│             │             │             │ Once, DEPQ │
 └─────────────┴─────────────┴─────────────┴────────────┘
 </code></pre>
 <h3 id="network"><a class="header" href="#network">Network</a></h3>
@@ -283,7 +284,7 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 <h3 id="groups"><a class="header" href="#groups">Groups</a></h3>
 <p>Availability groups coordinated by a modified Raft consensus protocol. Nodes sharing a group key form a cluster, elect a leader, and replicate commands through a shared log. Custom state machines define application logic that runs deterministically on all group members.</p>
 <h3 id="collections"><a class="header" href="#collections">Collections</a></h3>
-<p>Higher-level replicated data structures built on Groups. Each collection (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>PriorityQueue</code>) creates its own Raft group with a specialized state machine.</p>
+<p>Higher-level replicated data structures built on Groups. Each collection (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>, <code>PriorityQueue</code>) creates its own Raft group with a specialized state machine.</p>
 <h2 id="design-decisions"><a class="header" href="#design-decisions">Design Decisions</a></h2>
 <h3 id="trusted-network-assumption"><a class="header" href="#trusted-network-assumption">Trusted Network Assumption</a></h3>
 <p>Mosaik is <strong>not</strong> Byzantine fault tolerant. All nodes are assumed to be honest and correctly implementing the protocol. This assumption enables:</p>
@@ -481,7 +482,7 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 <li><strong><a href="#building-a-bootstrap-node">Tutorials</a></strong> — Walk through the included examples</li>
 <li><strong><a href="#streams-1">Streams</a></strong> — Producer/consumer configuration, filtering, backpressure</li>
 <li><strong><a href="#groups-1">Groups</a></strong> — Raft consensus and replicated state machines</li>
-<li><strong><a href="#collections-1">Collections</a></strong> — Distributed Map, Vec, Set, PriorityQueue</li>
+<li><strong><a href="#collections-1">Collections</a></strong> — Distributed Map, Vec, Set, Register, Once, PriorityQueue</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="architecture"><a class="header" href="#architecture">Architecture</a></h1>
@@ -494,7 +495,7 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
     ├── Discovery          (gossip announcements, catalog sync)
     ├── Streams            (typed pub/sub channels)
     └── Groups             (Raft consensus groups)
-            └── Collections  (replicated Map, Vec, Set, PriorityQueue)
+            └── Collections  (replicated Map, Vec, Set, Register, Once, PriorityQueue)
 </code></pre>
 <p>Each subsystem is created during <code>Network::builder().build()</code> and installed as a protocol handler on the iroh <code>Router</code>. The subsystems are then accessible via accessor methods:</p>
 <pre><code class="language-rust ignore">let network = Network::builder(network_id).build().await?;
@@ -577,7 +578,7 @@ group.when().leader_elected().await;
 // Wait for a collection to reach a specific version
 collection.when().reaches(version).await;</code></pre>
 <h3 id="arcinner-pattern"><a class="header" href="#arcinner-pattern">Arc&lt;Inner&gt; Pattern</a></h3>
-<p>All public handles (<code>Network</code>, <code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Group</code>, <code>Producer</code>, <code>Consumer</code>, <code>Map</code>, <code>Vec</code>, etc.) are cheap to clone. They wrap an <code>Arc&lt;Inner&gt;</code> containing the actual state, making them safe to share across tasks.</p>
+<p>All public handles (<code>Network</code>, <code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Group</code>, <code>Producer</code>, <code>Consumer</code>, <code>Map</code>, <code>Vec</code>, <code>Register</code>, <code>Once</code>, etc.) are cheap to clone. They wrap an <code>Arc&lt;Inner&gt;</code> containing the actual state, making them safe to share across tasks.</p>
 <h3 id="task-per-connection"><a class="header" href="#task-per-connection">Task-Per-Connection</a></h3>
 <p>Each consumer subscription and each producer-subscriber pair runs in its own tokio task. This avoids head-of-line blocking — a slow consumer doesn’t affect other consumers, and a slow subscriber doesn’t block the producer.</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -2579,7 +2580,7 @@ let config = ConsensusConfig::default().deprioritize_leadership_by(5);</code></p
 <h1 id="state-machines"><a class="header" href="#state-machines">State Machines</a></h1>
 <p>Every group runs a replicated state machine (RSM) that processes commands and answers queries. The <code>StateMachine</code> trait is the primary extension point for application logic.</p>
 <h2 id="the-statemachine-trait"><a class="header" href="#the-statemachine-trait">The StateMachine Trait</a></h2>
-<pre><code class="language-rust ignore">pub trait StateMachine: Sized + Send + 'static {
+<pre><code class="language-rust ignore">pub trait StateMachine: Sized + Send + Sync + 'static {
     type Command: Command;       // Mutating operations
     type Query: Query;           // Read-only operations
     type QueryResult: QueryResult; // Query responses
@@ -2592,7 +2593,7 @@ let config = ConsensusConfig::default().deprioritize_leadership_by(5);</code></p
 
     // Optional overrides
     fn apply_batch(&amp;mut self, commands: impl IntoIterator&lt;Item = Self::Command&gt;, ctx: &amp;dyn ApplyContext) { ... }
-    fn consensus_config(&amp;self) -&gt; Option&lt;ConsensusConfig&gt; { None }
+    fn leadership_preference(&amp;self) -&gt; LeadershipPreference { LeadershipPreference::Normal }
 }</code></pre>
 <h3 id="associated-types"><a class="header" href="#associated-types">Associated Types</a></h3>
 <div class="table-wrapper">
@@ -2711,12 +2712,38 @@ impl StateMachine for NoOp {
 }</code></pre>
 <p><code>LogReplaySync</code> replays committed log entries to bring the follower’s state machine up to date. For advanced use cases (e.g., snapshot-based sync), implement the <code>StateSync</code> trait directly.</p>
 <p>See the <a href="subsystems/internals/state-sync.html">State Sync</a> deep dive for details.</p>
-<h2 id="consensus-config-hints"><a class="header" href="#consensus-config-hints">Consensus Config Hints</a></h2>
-<p>A state machine can provide a default <code>ConsensusConfig</code>:</p>
-<pre><code class="language-rust ignore">fn consensus_config(&amp;self) -&gt; Option&lt;ConsensusConfig&gt; {
-    Some(ConsensusConfig::default().deprioritize_leadership())
+<h2 id="leadership-preference-1"><a class="header" href="#leadership-preference-1">Leadership Preference</a></h2>
+<p>A state machine can declare its preference for assuming leadership within
+the group by overriding <code>leadership_preference()</code>. This is a per-node
+setting – different nodes in the same group can return different values
+without affecting the <code>GroupId</code>.</p>
+<pre><code class="language-rust ignore">use mosaik::LeadershipPreference;
+
+fn leadership_preference(&amp;self) -&gt; LeadershipPreference {
+    LeadershipPreference::Observer
 }</code></pre>
-<p>This is used when the builder does not specify an explicit config. It can be overridden by <code>with_consensus_config()</code> on the builder.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variant</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Normal</code> (default)</td><td>Standard Raft behavior – participates in elections as a candidate</td></tr>
+<tr><td><code>Reluctant { factor: u32 }</code></td><td>Longer election timeouts (multiplied by <code>factor</code>), can still be elected</td></tr>
+<tr><td><code>Observer</code></td><td>Never self-nominates as candidate; still votes and replicates log</td></tr>
+</tbody>
+</table>
+</div>
+<p>The convenience constructor <code>LeadershipPreference::reluctant()</code> creates a
+<code>Reluctant</code> variant with the default factor of 3.</p>
+<blockquote>
+<p><strong>Liveness warning:</strong> If every node in a group returns <code>Observer</code>, no
+leader can ever be elected and the group will be unable to make progress.
+Ensure at least one node has <code>Normal</code> or <code>Reluctant</code> preference.</p>
+</blockquote>
+<p>This mechanism is used internally by <a href="#writerreader-pattern">collection readers</a>,
+which return <code>Observer</code> so that leadership stays on writer nodes where
+writes are handled directly rather than being forwarded.</p>
 <h2 id="storage"><a class="header" href="#storage">Storage</a></h2>
 <p>Commands are persisted in a log via the <code>Storage</code> trait:</p>
 <pre><code class="language-rust ignore">pub trait Storage&lt;C: Command&gt;: Send + 'static {
@@ -2971,12 +2998,12 @@ synchronized across all participating nodes using Raft consensus.</p>
 <pre><code class="language-text">┌────────────────────────────────────────────────────────────────────────┐
 │                   Collections                                          │
 │                                                                        │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌─────────────────┐ │
-│  │   Map    │ │   Vec    │ │   Set    │ │  DEPQ  │ │   Register &lt;T&gt;  │ │
-│  │ &lt;K, V&gt;   │ │ &lt;T&gt;      │ │ &lt;T&gt;      │ │&lt;P,K,V&gt; │ │                 │ │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └────────┬────────┘ │
-│       └────────────┴────────────┴─┬─────────┴───────────────┘          │
-│                                   │                                    │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌──────┐ │
+│  │   Map    │ │   Vec    │ │   Set    │ │  DEPQ  │ │ Register │ │ Once │ │
+│  │ &lt;K, V&gt;   │ │ &lt;T&gt;      │ │ &lt;T&gt;      │ │&lt;P,K,V&gt; │ │  &lt;T&gt;     │ │ &lt;T&gt;  │ │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └────┬─────┘ └──┬───┘ │
+│       └────────────┴────────────┴─┬─────────┴───────────┴──────────┘     │
+│                                   │                                     │
 │                                   │                                    │
 │                                   │                                    │
 │                  ┌────────────────▼───────────────────┐                │
@@ -3014,8 +3041,8 @@ using a const-generic boolean:</p>
 <tr><th>Mode</th><th>Type alias</th><th>Can write?</th><th>Leadership priority</th></tr>
 </thead>
 <tbody>
-<tr><td><strong>Writer</strong></td><td><code>MapWriter&lt;K,V&gt;</code>, <code>VecWriter&lt;T&gt;</code>, <code>RegisterWriter&lt;T&gt;</code>, etc.</td><td>Yes</td><td>Normal</td></tr>
-<tr><td><strong>Reader</strong></td><td><code>MapReader&lt;K,V&gt;</code>, <code>VecReader&lt;T&gt;</code>, <code>RegisterReader&lt;T&gt;</code>, etc.</td><td>No</td><td>Deprioritized</td></tr>
+<tr><td><strong>Writer</strong></td><td><code>MapWriter&lt;K,V&gt;</code>, <code>VecWriter&lt;T&gt;</code>, <code>RegisterWriter&lt;T&gt;</code>, <code>OnceWriter&lt;T&gt;</code> etc.</td><td>Yes</td><td>Normal</td></tr>
+<tr><td><strong>Reader</strong></td><td><code>MapReader&lt;K,V&gt;</code>, <code>VecReader&lt;T&gt;</code>, <code>RegisterReader&lt;T&gt;</code>, <code>OnceReader&lt;T&gt;</code> etc.</td><td>No</td><td>Deprioritized</td></tr>
 </tbody>
 </table>
 </div>
@@ -3038,14 +3065,16 @@ let r = Map::&lt;String, u64&gt;::reader(&amp;network, store_id);</code></pre>
 <tr><td><a href="#vec"><code>Vec&lt;T&gt;</code></a></td><td>Ordered, index-addressable sequence</td><td><code>im::Vector</code></td></tr>
 <tr><td><a href="#set"><code>Set&lt;T&gt;</code></a></td><td>Unordered set of unique values</td><td><code>im::HashSet</code> (deterministic)</td></tr>
 <tr><td><a href="#register"><code>Register&lt;T&gt;</code></a></td><td>Single-value register</td><td><code>Option&lt;T&gt;</code></td></tr>
+<tr><td><a href="#once"><code>Once&lt;T&gt;</code></a></td><td>Write-once register</td><td><code>Option&lt;T&gt;</code></td></tr>
 <tr><td><a href="#priorityqueue"><code>PriorityQueue&lt;P, K, V&gt;</code></a></td><td>Double-ended priority queue</td><td><code>im::HashMap</code> + <code>im::OrdMap</code></td></tr>
 </tbody>
 </table>
 </div>
-<p>All collections use the <a href="https://docs.rs/im"><code>im</code> crate</a> for their internal
+<p>Most collections use the <a href="https://docs.rs/im"><code>im</code> crate</a> for their internal
 state, which provides <strong>O(1) structural sharing</strong> — cloning a snapshot of the
 entire collection is essentially free. This is critical for the snapshot-based
-state sync mechanism.</p>
+state sync mechanism. <code>Register</code> and <code>Once</code> use a plain <code>Option&lt;T&gt;</code> since they
+hold at most one value.</p>
 <h2 id="trait-requirements"><a class="header" href="#trait-requirements">Trait requirements</a></h2>
 <p>Collections use blanket-implemented marker traits to constrain their type
 parameters:</p>
@@ -3066,13 +3095,16 @@ bounds — you never need to implement them manually.</p>
 <h2 id="storeid-and-group-identity"><a class="header" href="#storeid-and-group-identity">StoreId and group identity</a></h2>
 <p>Each collection derives its Raft group identity from:</p>
 <ol>
-<li><strong>A fixed prefix</strong> per collection type (e.g., <code>"mosaik_collections_map"</code>)</li>
+<li><strong>A fixed prefix</strong> per collection type (e.g., <code>"mosaik_collections_map"</code>,
+<code>"mosaik_collections_once"</code>)</li>
 <li><strong>The <code>StoreId</code></strong> — a <code>UniqueId</code> you provide at construction time</li>
 <li><strong>The Rust type names</strong> of the type parameters</li>
 </ol>
 <p>This means <code>Map::&lt;String, u64&gt;::writer(&amp;net, id)</code> and
 <code>Map::&lt;u32, u64&gt;::writer(&amp;net, id)</code> will join <strong>different</strong> groups even with
-the same <code>StoreId</code>, because the key type differs.</p>
+the same <code>StoreId</code>, because the key type differs. Likewise, a <code>Once&lt;String&gt;</code>
+and a <code>Register&lt;String&gt;</code> with the same <code>StoreId</code> form separate groups because
+the prefix differs.</p>
 <h2 id="version-tracking"><a class="header" href="#version-tracking">Version tracking</a></h2>
 <p>All mutating operations return a <code>Version</code>, which wraps the Raft log <code>Index</code>
 at which the mutation will be committed:</p>
@@ -3709,6 +3741,162 @@ separate consensus groups.</p>
 <p>If you need to store multiple values, use <a href="#map"><code>Map</code></a>, <a href="#vec"><code>Vec</code></a>,
 or <a href="#set"><code>Set</code></a> instead.</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="once"><a class="header" href="#once">Once</a></h1>
+<p><code>Once&lt;T&gt;</code> is a replicated write-once register. It holds at most one value —
+once a value has been set, all subsequent writes are silently ignored by the
+state machine. This is the distributed equivalent of a
+<code>tokio::sync::OnceCell</code>.</p>
+<p>Unlike <a href="#register"><code>Register&lt;T&gt;</code></a>, which allows overwriting the stored value,
+<code>Once&lt;T&gt;</code> guarantees that the first accepted write is permanent. This makes it
+ideal for one-time initialization patterns where you need exactly one value to
+win across a distributed cluster.</p>
+<p>Internally the state is an <code>Option&lt;T&gt;</code>, identical to <code>Register</code>, but the
+<code>apply</code> logic rejects writes when the value is already <code>Some</code>.</p>
+<h2 id="construction-4"><a class="header" href="#construction-4">Construction</a></h2>
+<pre><code class="language-rust ignore">use mosaik::collections::{Once, StoreId, SyncConfig};
+
+// Writer — can read and write
+let once = Once::&lt;String&gt;::writer(&amp;network, StoreId::from("config-seed"));
+
+// Writer with custom sync config
+let once = Once::&lt;String&gt;::writer_with_config(&amp;network, store_id, config);
+
+// Reader — read-only, deprioritized for leadership
+let once = Once::&lt;String&gt;::reader(&amp;network, store_id);
+
+// Reader with custom sync config
+let once = Once::&lt;String&gt;::reader_with_config(&amp;network, store_id, config);
+
+// Aliases: new() == writer(), new_with_config() == writer_with_config()
+let once = Once::&lt;String&gt;::new(&amp;network, store_id);</code></pre>
+<h2 id="read-operations-4"><a class="header" href="#read-operations-4">Read operations</a></h2>
+<p>Available on both writers and readers. Reads operate on the local committed
+state and never touch the network.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Time</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>read() -&gt; Option&lt;T&gt;</code></td><td>O(1)</td><td>Get the current value</td></tr>
+<tr><td><code>get() -&gt; Option&lt;T&gt;</code></td><td>O(1)</td><td>Alias for <code>read()</code></td></tr>
+<tr><td><code>is_empty() -&gt; bool</code></td><td>O(1)</td><td>Whether the register has been set</td></tr>
+<tr><td><code>is_none() -&gt; bool</code></td><td>O(1)</td><td>Alias for <code>is_empty()</code></td></tr>
+<tr><td><code>is_some() -&gt; bool</code></td><td>O(1)</td><td>Whether the register holds a value</td></tr>
+<tr><td><code>version() -&gt; Version</code></td><td>O(1)</td><td>Current committed state version</td></tr>
+<tr><td><code>when() -&gt; &amp;When</code></td><td>O(1)</td><td>Access the state observer</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-rust ignore">// Read the current value
+if let Some(seed) = once.read() {
+    println!("Config seed: {seed}");
+}
+
+// Check if a value has been written
+if once.is_none() {
+    println!("No seed set yet");
+}
+
+// Equivalent check
+assert_eq!(once.is_empty(), once.is_none());
+assert_eq!(once.is_some(), !once.is_empty());</code></pre>
+<h2 id="write-operations-4"><a class="header" href="#write-operations-4">Write operations</a></h2>
+<p>Only available on <code>OnceWriter&lt;T&gt;</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Time</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>write(T) -&gt; Result&lt;Version, Error&lt;T&gt;&gt;</code></td><td>O(1)</td><td>Set the value (ignored if already set)</td></tr>
+<tr><td><code>set(T) -&gt; Result&lt;Version, Error&lt;T&gt;&gt;</code></td><td>O(1)</td><td>Alias for <code>write()</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>The key behavior: <strong>only the first write takes effect.</strong> If a value has already
+been set, subsequent writes are silently ignored by the state machine. The
+returned <code>Version</code> still advances (the command is committed to the Raft log),
+but the stored value does not change.</p>
+<pre><code class="language-rust ignore">// First write — this value is stored permanently
+let v = once.write("genesis".into()).await?;
+once.when().reaches(v).await;
+assert_eq!(once.read(), Some("genesis".into()));
+
+// Second write — silently ignored
+let v2 = once.write("overwrite-attempt".into()).await?;
+once.when().reaches(v2).await;
+assert_eq!(once.read(), Some("genesis".into())); // still "genesis"
+
+// Using the alias
+once.set("another-attempt".into()).await?;
+assert_eq!(once.read(), Some("genesis".into())); // unchanged</code></pre>
+<h2 id="error-handling-6"><a class="header" href="#error-handling-6">Error handling</a></h2>
+<p>Writes return the failed value on <code>Error::Offline</code> so you can retry:</p>
+<pre><code class="language-rust ignore">match once.write(value).await {
+    Ok(version) =&gt; {
+        once.when().reaches(version).await;
+    }
+    Err(Error::Offline(value)) =&gt; {
+        // Retry with the same value later
+    }
+    Err(Error::Encoding(value, err)) =&gt; {
+        // Serialization failed
+    }
+    Err(Error::NetworkDown) =&gt; {
+        // Permanent failure
+    }
+}</code></pre>
+<h2 id="status--observation-4"><a class="header" href="#status--observation-4">Status &amp; observation</a></h2>
+<pre><code class="language-rust ignore">// Wait until online
+once.when().online().await;
+
+// Wait for a specific committed version
+let v = once.write("init".into()).await?;
+once.when().reaches(v).await;
+
+// Wait for any update
+once.when().updated().await;
+
+// React to going offline
+once.when().offline().await;</code></pre>
+<h2 id="group-identity-5"><a class="header" href="#group-identity-5">Group identity</a></h2>
+<p>The group key for a <code>Once&lt;T&gt;</code> is derived from:</p>
+<pre><code class="language-text">UniqueId::from("mosaik_collections_once")
+    .derive(store_id)
+    .derive(type_name::&lt;T&gt;())
+</code></pre>
+<p>A <code>Once&lt;T&gt;</code> and a <code>Register&lt;T&gt;</code> with the same <code>StoreId</code> and type parameter
+will be in <strong>separate</strong> consensus groups because the prefix differs
+(<code>"mosaik_collections_once"</code> vs <code>"mosaik_collections_register"</code>).</p>
+<h2 id="once-vs-register"><a class="header" href="#once-vs-register">Once vs Register</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Behavior</th><th><code>Once&lt;T&gt;</code></th><th><code>Register&lt;T&gt;</code></th></tr>
+</thead>
+<tbody>
+<tr><td>Write semantics</td><td>First write wins; subsequent ignored</td><td>Every write replaces the stored value</td></tr>
+<tr><td><code>clear()</code></td><td>Not supported</td><td>Supported</td></tr>
+<tr><td><code>compare_exchange</code></td><td>Not supported</td><td>Supported</td></tr>
+<tr><td>Distributed analog</td><td><code>tokio::sync::OnceCell</code></td><td><code>tokio::sync::watch</code></td></tr>
+<tr><td>State machine sig</td><td><code>"mosaik_collections_once"</code></td><td><code>"mosaik_collections_register"</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="when-to-use-once"><a class="header" href="#when-to-use-once">When to use Once</a></h2>
+<p><code>Once</code> is ideal for:</p>
+<ul>
+<li><strong>One-time initialization</strong> — a genesis config, cluster seed, or bootstrap
+value that should only be set once</li>
+<li><strong>Distributed elections</strong> — the first node to write a value claims a slot</li>
+<li><strong>Immutable assignments</strong> — assigning a resource or identity permanently</li>
+<li><strong>Configuration anchors</strong> — values that must not change after initial
+deployment</li>
+</ul>
+<p>If you need to update the value after setting it, use
+<a href="#register"><code>Register</code></a> instead.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="priorityqueue"><a class="header" href="#priorityqueue">PriorityQueue</a></h1>
 <p><code>PriorityQueue&lt;P, K, V&gt;</code> is a replicated, eventually consistent double-ended
 priority queue (DEPQ). Each entry has a <strong>priority</strong> (<code>P</code>), a unique <strong>key</strong>
@@ -3723,7 +3911,7 @@ operations</li>
 </ul>
 <p>Both indexes use deterministic hashers for consistent iteration order across
 nodes.</p>
-<h2 id="construction-4"><a class="header" href="#construction-4">Construction</a></h2>
+<h2 id="construction-5"><a class="header" href="#construction-5">Construction</a></h2>
 <pre><code class="language-rust ignore">use mosaik::collections::{PriorityQueue, StoreId, SyncConfig};
 
 // Writer — can read and write
@@ -3750,7 +3938,7 @@ let pq = PriorityQueue::&lt;u64, String, Order&gt;::new(&amp;network, store_id);
 let pq = PriorityQueue::&lt;u64, String, Order&gt;::new_with_config(
     &amp;network, store_id, config,
 );</code></pre>
-<h2 id="read-operations-4"><a class="header" href="#read-operations-4">Read operations</a></h2>
+<h2 id="read-operations-5"><a class="header" href="#read-operations-5">Read operations</a></h2>
 <p>Available on both writers and readers.</p>
 <div class="table-wrapper">
 <table>
@@ -3789,7 +3977,7 @@ let price = pq.get_priority(&amp;"order-42".into());
 for (priority, key, value) in pq.iter_desc() {
     println!("{priority}: {key} = {value:?}");
 }</code></pre>
-<h2 id="write-operations-4"><a class="header" href="#write-operations-4">Write operations</a></h2>
+<h2 id="write-operations-5"><a class="header" href="#write-operations-5">Write operations</a></h2>
 <p>Only available on <code>PriorityQueueWriter&lt;P, K, V&gt;</code>.</p>
 <div class="table-wrapper">
 <table>
@@ -3888,7 +4076,7 @@ queue.</p>
 <p><strong>Note:</strong> The entry’s priority is never changed by <code>compare_exchange_value</code>.
 To atomically update priorities, use <code>update_priority</code> instead.</p>
 </blockquote>
-<h2 id="error-handling-6"><a class="header" href="#error-handling-6">Error handling</a></h2>
+<h2 id="error-handling-7"><a class="header" href="#error-handling-7">Error handling</a></h2>
 <p>Same pattern as other collections — failed values are returned for retry:</p>
 <pre><code class="language-rust ignore">match pq.insert(priority, key, value).await {
     Ok(version) =&gt; { /* committed */ }
@@ -3899,7 +4087,7 @@ To atomically update priorities, use <code>update_priority</code> instead.</p>
         // Permanent failure
     }
 }</code></pre>
-<h2 id="status--observation-4"><a class="header" href="#status--observation-4">Status &amp; observation</a></h2>
+<h2 id="status--observation-5"><a class="header" href="#status--observation-5">Status &amp; observation</a></h2>
 <pre><code class="language-rust ignore">pq.when().online().await;
 
 let v = pq.insert(100, "k".into(), val).await?;
@@ -3916,7 +4104,7 @@ by_priority: OrdMap&lt;P, HashMap&lt;K, V&gt;&gt; ← min/max, range ops, ordere
 the state machine’s <code>apply_batch</code>. During snapshot sync, only the <code>by_key</code>
 index is serialized; the <code>by_priority</code> index is reconstructed on the receiving
 side during <code>append</code>.</p>
-<h2 id="group-identity-5"><a class="header" href="#group-identity-5">Group identity</a></h2>
+<h2 id="group-identity-6"><a class="header" href="#group-identity-6">Group identity</a></h2>
 <pre><code class="language-text">UniqueId::from("mosaik_collections_depq")
     .derive(store_id)
     .derive(type_name::&lt;P&gt;())
@@ -3955,11 +4143,12 @@ whether the instance has write access.</p>
 <tr><td><code>Vec&lt;T&gt;</code></td><td><code>VecWriter&lt;T&gt;</code></td><td><code>VecReader&lt;T&gt;</code></td></tr>
 <tr><td><code>Set&lt;T&gt;</code></td><td><code>SetWriter&lt;T&gt;</code></td><td><code>SetReader&lt;T&gt;</code></td></tr>
 <tr><td><code>Register&lt;T&gt;</code></td><td><code>RegisterWriter&lt;T&gt;</code></td><td><code>RegisterReader&lt;T&gt;</code></td></tr>
+<tr><td><code>Once&lt;T&gt;</code></td><td><code>OnceWriter&lt;T&gt;</code></td><td><code>OnceReader&lt;T&gt;</code></td></tr>
 <tr><td><code>PriorityQueue&lt;P, K, V&gt;</code></td><td><code>PriorityQueueWriter&lt;P, K, V&gt;</code></td><td><code>PriorityQueueReader&lt;P, K, V&gt;</code></td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="construction-5"><a class="header" href="#construction-5">Construction</a></h2>
+<h2 id="construction-6"><a class="header" href="#construction-6">Construction</a></h2>
 <p>Every collection offers the same set of constructors:</p>
 <pre><code class="language-rust ignore">// Writer (default)
 Collection::writer(&amp;network, store_id)
@@ -4546,16 +4735,20 @@ that streams its stored log entries.</p>
 <p>The <code>replay</code> module provides <code>ReplayProvider</code> and <code>ReplaySession</code> types for
 this path.</p>
 <h2 id="collections-and-state-sync"><a class="header" href="#collections-and-state-sync">Collections and state sync</a></h2>
-<p>All built-in collection types (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>PriorityQueue</code>) implement
-<code>SnapshotStateMachine</code>. Their internal state machines produce snapshots using
-the <code>im</code> crate’s persistent data structures:</p>
-<pre><code class="language-text">MapStateMachine ──snapshot()──► MapSnapshot (HashMap entries)
-VecStateMachine ──snapshot()──► VecSnapshot (indexed entries)
-SetStateMachine ──snapshot()──► SetSnapshot (set members)
+<p>All built-in collection types (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>,
+<code>PriorityQueue</code>) implement <code>SnapshotStateMachine</code>. Their internal state
+machines produce snapshots:</p>
+<pre><code class="language-text">MapStateMachine  ──snapshot()──► MapSnapshot (HashMap entries)
+VecStateMachine  ──snapshot()──► VecSnapshot (indexed entries)
+SetStateMachine  ──snapshot()──► SetSnapshot (set members)
+RegStateMachine  ──snapshot()──► RegisterSnapshot (optional value)
+OnceStateMachine ──snapshot()──► OnceSnapshot (optional value)
 DepqStateMachine ──snapshot()──► PriorityQueueSnapshot (by_key + by_priority)
 </code></pre>
 <p>The dual-index structure of <code>PriorityQueue</code> is preserved across sync — both
-the <code>by_key</code> and <code>by_priority</code> indices are transmitted and reconstructed.</p>
+the <code>by_key</code> and <code>by_priority</code> indices are transmitted and reconstructed.
+<code>Register</code> and <code>Once</code> snapshots are trivial (at most one item), so sync
+completes in a single batch.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="wire-protocol"><a class="header" href="#wire-protocol">Wire Protocol</a></h1>
 <p>All peer-to-peer communication in mosaik flows over <strong>QUIC</strong> streams, using a
@@ -4691,7 +4884,7 @@ practice mosaik messages are typically under a few kilobytes.</p>
 </ul>
 <p>QUIC’s multiplexing means these streams don’t interfere with each other even
 when sharing the same underlying UDP connection.</p>
-<h2 id="error-handling-7"><a class="header" href="#error-handling-7">Error handling</a></h2>
+<h2 id="error-handling-8"><a class="header" href="#error-handling-8">Error handling</a></h2>
 <p>Link operations return <code>std::io::Error</code>. Common failure modes:</p>
 <div class="table-wrapper">
 <table>
@@ -5029,7 +5222,7 @@ variable parsing. However, test utilities honor:</p>
 </table>
 </div>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="error-handling-8"><a class="header" href="#error-handling-8">Error Handling</a></h1>
+<h1 id="error-handling-9"><a class="header" href="#error-handling-9">Error Handling</a></h1>
 <p>Mosaik uses typed error enums specific to each subsystem, plus a
 close-reason system for QUIC connection-level codes. This chapter catalogs
 every public error type.</p>
@@ -5265,7 +5458,7 @@ different contexts:</p>
 </tbody>
 </table>
 </div>
-<h3 id="construction-6"><a class="header" href="#construction-6">Construction</a></h3>
+<h3 id="construction-7"><a class="header" href="#construction-7">Construction</a></h3>
 <pre><code class="language-rust ignore">// From a string (hashes the string with blake3)
 let tag = Digest::from("validator");
 

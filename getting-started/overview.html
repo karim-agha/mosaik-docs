@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b8260048.js";
+            window.path_to_searchindex_js = "../searchindex-2279e034.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-afb5d9f0.js"></script>
+        <script src="../toc-546f1084.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -192,7 +192,7 @@
 <tr><td><strong>Self-organizing</strong></td><td>Nodes discover each other via gossip and form the correct topology automatically</td></tr>
 <tr><td><strong>Typed pub/sub</strong></td><td>Stream any serializable Rust type between nodes with backpressure and filtering</td></tr>
 <tr><td><strong>Raft consensus</strong></td><td>Form availability groups with leader election and replicated state machines</td></tr>
-<tr><td><strong>Replicated collections</strong></td><td>Distributed <code>Map</code>, <code>Vec</code>, <code>Set</code>, and <code>PriorityQueue</code> with strong consistency</td></tr>
+<tr><td><strong>Replicated collections</strong></td><td>Distributed <code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>, and <code>PriorityQueue</code> with strong consistency</td></tr>
 <tr><td><strong>QUIC transport</strong></td><td>Built on <a href="https://github.com/n0-computer/iroh">iroh</a> for modern, encrypted P2P networking</td></tr>
 <tr><td><strong>Relay support</strong></td><td>Nodes behind NAT can communicate via relay servers with automatic hole-punching</td></tr>
 </tbody>
@@ -207,7 +207,8 @@
 │  Discovery  │   Streams   │   Groups    │Collections │
 │  Gossip &amp;   │  Typed      │  Raft       │ Replicated │
 │  peer       │  pub/sub    │  consensus  │ Map, Vec,  │
-│  catalog    │  channels   │  groups     │ Set, DEPQ  │
+│  catalog    │  channels   │  groups     │ Set, Reg,  │
+│             │             │             │ Once, DEPQ │
 └─────────────┴─────────────┴─────────────┴────────────┘
 </code></pre>
 <h3 id="network"><a class="header" href="#network">Network</a></h3>
@@ -219,7 +220,7 @@
 <h3 id="groups"><a class="header" href="#groups">Groups</a></h3>
 <p>Availability groups coordinated by a modified Raft consensus protocol. Nodes sharing a group key form a cluster, elect a leader, and replicate commands through a shared log. Custom state machines define application logic that runs deterministically on all group members.</p>
 <h3 id="collections"><a class="header" href="#collections">Collections</a></h3>
-<p>Higher-level replicated data structures built on Groups. Each collection (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>PriorityQueue</code>) creates its own Raft group with a specialized state machine.</p>
+<p>Higher-level replicated data structures built on Groups. Each collection (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>, <code>PriorityQueue</code>) creates its own Raft group with a specialized state machine.</p>
 <h2 id="design-decisions"><a class="header" href="#design-decisions">Design Decisions</a></h2>
 <h3 id="trusted-network-assumption"><a class="header" href="#trusted-network-assumption">Trusted Network Assumption</a></h3>
 <p>Mosaik is <strong>not</strong> Byzantine fault tolerant. All nodes are assumed to be honest and correctly implementing the protocol. This assumption enables:</p>

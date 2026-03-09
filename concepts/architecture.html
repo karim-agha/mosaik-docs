@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b8260048.js";
+            window.path_to_searchindex_js = "../searchindex-2279e034.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-afb5d9f0.js"></script>
+        <script src="../toc-546f1084.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -190,7 +190,7 @@
     ├── Discovery          (gossip announcements, catalog sync)
     ├── Streams            (typed pub/sub channels)
     └── Groups             (Raft consensus groups)
-            └── Collections  (replicated Map, Vec, Set, PriorityQueue)
+            └── Collections  (replicated Map, Vec, Set, Register, Once, PriorityQueue)
 </code></pre>
 <p>Each subsystem is created during <code>Network::builder().build()</code> and installed as a protocol handler on the iroh <code>Router</code>. The subsystems are then accessible via accessor methods:</p>
 <pre><code class="language-rust ignore">let network = Network::builder(network_id).build().await?;
@@ -273,7 +273,7 @@ group.when().leader_elected().await;
 // Wait for a collection to reach a specific version
 collection.when().reaches(version).await;</code></pre>
 <h3 id="arcinner-pattern"><a class="header" href="#arcinner-pattern">Arc&lt;Inner&gt; Pattern</a></h3>
-<p>All public handles (<code>Network</code>, <code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Group</code>, <code>Producer</code>, <code>Consumer</code>, <code>Map</code>, <code>Vec</code>, etc.) are cheap to clone. They wrap an <code>Arc&lt;Inner&gt;</code> containing the actual state, making them safe to share across tasks.</p>
+<p>All public handles (<code>Network</code>, <code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Group</code>, <code>Producer</code>, <code>Consumer</code>, <code>Map</code>, <code>Vec</code>, <code>Register</code>, <code>Once</code>, etc.) are cheap to clone. They wrap an <code>Arc&lt;Inner&gt;</code> containing the actual state, making them safe to share across tasks.</p>
 <h3 id="task-per-connection"><a class="header" href="#task-per-connection">Task-Per-Connection</a></h3>
 <p>Each consumer subscription and each producer-subscriber pair runs in its own tokio task. This avoids head-of-line blocking — a slow consumer doesn’t affect other consumers, and a slow subscriber doesn’t block the producer.</p>
 

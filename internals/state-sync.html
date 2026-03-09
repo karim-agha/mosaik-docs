@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b8260048.js";
+            window.path_to_searchindex_js = "../searchindex-2279e034.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-afb5d9f0.js"></script>
+        <script src="../toc-546f1084.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -311,16 +311,20 @@ that streams its stored log entries.</p>
 <p>The <code>replay</code> module provides <code>ReplayProvider</code> and <code>ReplaySession</code> types for
 this path.</p>
 <h2 id="collections-and-state-sync"><a class="header" href="#collections-and-state-sync">Collections and state sync</a></h2>
-<p>All built-in collection types (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>PriorityQueue</code>) implement
-<code>SnapshotStateMachine</code>. Their internal state machines produce snapshots using
-the <code>im</code> crate’s persistent data structures:</p>
-<pre><code class="language-text">MapStateMachine ──snapshot()──► MapSnapshot (HashMap entries)
-VecStateMachine ──snapshot()──► VecSnapshot (indexed entries)
-SetStateMachine ──snapshot()──► SetSnapshot (set members)
+<p>All built-in collection types (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>,
+<code>PriorityQueue</code>) implement <code>SnapshotStateMachine</code>. Their internal state
+machines produce snapshots:</p>
+<pre><code class="language-text">MapStateMachine  ──snapshot()──► MapSnapshot (HashMap entries)
+VecStateMachine  ──snapshot()──► VecSnapshot (indexed entries)
+SetStateMachine  ──snapshot()──► SetSnapshot (set members)
+RegStateMachine  ──snapshot()──► RegisterSnapshot (optional value)
+OnceStateMachine ──snapshot()──► OnceSnapshot (optional value)
 DepqStateMachine ──snapshot()──► PriorityQueueSnapshot (by_key + by_priority)
 </code></pre>
 <p>The dual-index structure of <code>PriorityQueue</code> is preserved across sync — both
-the <code>by_key</code> and <code>by_priority</code> indices are transmitted and reconstructed.</p>
+the <code>by_key</code> and <code>by_priority</code> indices are transmitted and reconstructed.
+<code>Register</code> and <code>Once</code> snapshots are trivial (at most one item), so sync
+completes in a single batch.</p>
 
                     </main>
 

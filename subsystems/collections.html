@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b8260048.js";
+            window.path_to_searchindex_js = "../searchindex-2279e034.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-afb5d9f0.js"></script>
+        <script src="../toc-546f1084.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -187,12 +187,12 @@ synchronized across all participating nodes using Raft consensus.</p>
 <pre><code class="language-text">┌────────────────────────────────────────────────────────────────────────┐
 │                   Collections                                          │
 │                                                                        │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌─────────────────┐ │
-│  │   Map    │ │   Vec    │ │   Set    │ │  DEPQ  │ │   Register &lt;T&gt;  │ │
-│  │ &lt;K, V&gt;   │ │ &lt;T&gt;      │ │ &lt;T&gt;      │ │&lt;P,K,V&gt; │ │                 │ │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └────────┬────────┘ │
-│       └────────────┴────────────┴─┬─────────┴───────────────┘          │
-│                                   │                                    │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌──────┐ │
+│  │   Map    │ │   Vec    │ │   Set    │ │  DEPQ  │ │ Register │ │ Once │ │
+│  │ &lt;K, V&gt;   │ │ &lt;T&gt;      │ │ &lt;T&gt;      │ │&lt;P,K,V&gt; │ │  &lt;T&gt;     │ │ &lt;T&gt;  │ │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └────┬─────┘ └──┬───┘ │
+│       └────────────┴────────────┴─┬─────────┴───────────┴──────────┘     │
+│                                   │                                     │
 │                                   │                                    │
 │                                   │                                    │
 │                  ┌────────────────▼───────────────────┐                │
@@ -230,8 +230,8 @@ using a const-generic boolean:</p>
 <tr><th>Mode</th><th>Type alias</th><th>Can write?</th><th>Leadership priority</th></tr>
 </thead>
 <tbody>
-<tr><td><strong>Writer</strong></td><td><code>MapWriter&lt;K,V&gt;</code>, <code>VecWriter&lt;T&gt;</code>, <code>RegisterWriter&lt;T&gt;</code>, etc.</td><td>Yes</td><td>Normal</td></tr>
-<tr><td><strong>Reader</strong></td><td><code>MapReader&lt;K,V&gt;</code>, <code>VecReader&lt;T&gt;</code>, <code>RegisterReader&lt;T&gt;</code>, etc.</td><td>No</td><td>Deprioritized</td></tr>
+<tr><td><strong>Writer</strong></td><td><code>MapWriter&lt;K,V&gt;</code>, <code>VecWriter&lt;T&gt;</code>, <code>RegisterWriter&lt;T&gt;</code>, <code>OnceWriter&lt;T&gt;</code> etc.</td><td>Yes</td><td>Normal</td></tr>
+<tr><td><strong>Reader</strong></td><td><code>MapReader&lt;K,V&gt;</code>, <code>VecReader&lt;T&gt;</code>, <code>RegisterReader&lt;T&gt;</code>, <code>OnceReader&lt;T&gt;</code> etc.</td><td>No</td><td>Deprioritized</td></tr>
 </tbody>
 </table>
 </div>
@@ -254,14 +254,16 @@ let r = Map::&lt;String, u64&gt;::reader(&amp;network, store_id);</code></pre>
 <tr><td><a href="collections/vec.html"><code>Vec&lt;T&gt;</code></a></td><td>Ordered, index-addressable sequence</td><td><code>im::Vector</code></td></tr>
 <tr><td><a href="collections/set.html"><code>Set&lt;T&gt;</code></a></td><td>Unordered set of unique values</td><td><code>im::HashSet</code> (deterministic)</td></tr>
 <tr><td><a href="collections/register.html"><code>Register&lt;T&gt;</code></a></td><td>Single-value register</td><td><code>Option&lt;T&gt;</code></td></tr>
+<tr><td><a href="collections/once.html"><code>Once&lt;T&gt;</code></a></td><td>Write-once register</td><td><code>Option&lt;T&gt;</code></td></tr>
 <tr><td><a href="collections/priority-queue.html"><code>PriorityQueue&lt;P, K, V&gt;</code></a></td><td>Double-ended priority queue</td><td><code>im::HashMap</code> + <code>im::OrdMap</code></td></tr>
 </tbody>
 </table>
 </div>
-<p>All collections use the <a href="https://docs.rs/im"><code>im</code> crate</a> for their internal
+<p>Most collections use the <a href="https://docs.rs/im"><code>im</code> crate</a> for their internal
 state, which provides <strong>O(1) structural sharing</strong> — cloning a snapshot of the
 entire collection is essentially free. This is critical for the snapshot-based
-state sync mechanism.</p>
+state sync mechanism. <code>Register</code> and <code>Once</code> use a plain <code>Option&lt;T&gt;</code> since they
+hold at most one value.</p>
 <h2 id="trait-requirements"><a class="header" href="#trait-requirements">Trait requirements</a></h2>
 <p>Collections use blanket-implemented marker traits to constrain their type
 parameters:</p>
@@ -282,13 +284,16 @@ bounds — you never need to implement them manually.</p>
 <h2 id="storeid-and-group-identity"><a class="header" href="#storeid-and-group-identity">StoreId and group identity</a></h2>
 <p>Each collection derives its Raft group identity from:</p>
 <ol>
-<li><strong>A fixed prefix</strong> per collection type (e.g., <code>"mosaik_collections_map"</code>)</li>
+<li><strong>A fixed prefix</strong> per collection type (e.g., <code>"mosaik_collections_map"</code>,
+<code>"mosaik_collections_once"</code>)</li>
 <li><strong>The <code>StoreId</code></strong> — a <code>UniqueId</code> you provide at construction time</li>
 <li><strong>The Rust type names</strong> of the type parameters</li>
 </ol>
 <p>This means <code>Map::&lt;String, u64&gt;::writer(&amp;net, id)</code> and
 <code>Map::&lt;u32, u64&gt;::writer(&amp;net, id)</code> will join <strong>different</strong> groups even with
-the same <code>StoreId</code>, because the key type differs.</p>
+the same <code>StoreId</code>, because the key type differs. Likewise, a <code>Once&lt;String&gt;</code>
+and a <code>Register&lt;String&gt;</code> with the same <code>StoreId</code> form separate groups because
+the prefix differs.</p>
 <h2 id="version-tracking"><a class="header" href="#version-tracking">Version tracking</a></h2>
 <p>All mutating operations return a <code>Version</code>, which wraps the Raft log <code>Index</code>
 at which the mutation will be committed:</p>

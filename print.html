@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2279e034.js";
+            window.path_to_searchindex_js = "searchindex-b64055f7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-546f1084.js"></script>
@@ -179,6 +179,13 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p align="center">
+  <a href="https://github.com/flashbots/mosaik/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="https://crates.io/crates/mosaik"><img alt="Status" src="https://img.shields.io/crates/v/mosaik.svg?color=blue"></a>
+  <a href="https://github.com/flashbots/mosaik"><img alt="Rust" src="https://img.shields.io/badge/rust-1.93%2B-blue.svg"></a>
+  <a href="https://github.com/flashbots/mosaik"><img alt="Status" src="https://img.shields.io/badge/status-experimental-orange.svg"></a>
+</p>
+
 <p><strong>Mosaik</strong> is a Rust runtime for building <strong>self-organizing, leaderless distributed systems</strong>. It is designed for trusted, permissioned networks — environments where all participating nodes are assumed honest, such as L2 blockchain infrastructure operated by a single organization.</p>
 <h2 id="what-mosaik-does"><a class="header" href="#what-mosaik-does">What Mosaik Does</a></h2>
 <p>When you deploy mosaik-based binaries on arbitrary machines, the network <strong>self-organizes</strong>: nodes discover each other via gossip, infer the data-flow topology, elect leaders where needed, and converge to a stable operational state. Each node needs only two things to participate:</p>
@@ -1990,6 +1997,180 @@ while let Some(update) = consumer.next().await {
 </table>
 </div>
 <p>Individual producers and consumers can override this via their respective builders.</p>
+<h2 id="the-stream-macro-recommended"><a class="header" href="#the-stream-macro-recommended">The <code>stream!</code> macro (recommended)</a></h2>
+<p>The <code>stream!</code> macro is the recommended way to declare named stream
+definitions. It generates a struct with a compile-time <code>StreamId</code> and
+implements the <code>StreamProducer</code> and/or <code>StreamConsumer</code> traits, so you
+can create producers and consumers without repeating the stream ID or
+configuration at every call site.</p>
+<h3 id="syntax"><a class="header" href="#syntax">Syntax</a></h3>
+<pre><code class="language-rust ignore">use mosaik::*;
+
+// Type-derived StreamId (most common):
+declare::stream!(pub PriceFeed = PriceUpdate);
+
+// Explicit StreamId:
+declare::stream!(pub PriceFeed = PriceUpdate, "oracle.price");
+
+// Producer only:
+declare::stream!(pub producer PriceFeed = PriceUpdate, "oracle.price");
+
+// Consumer only:
+declare::stream!(pub consumer PriceFeed = PriceUpdate, "oracle.price");</code></pre>
+<p>The three modes control which traits are implemented on the generated struct:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Mode</th><th>Implements</th></tr>
+</thead>
+<tbody>
+<tr><td><em>(default)</em></td><td><code>StreamProducer</code> <strong>and</strong> <code>StreamConsumer</code></td></tr>
+<tr><td><code>producer</code></td><td><code>StreamProducer</code> only</td></tr>
+<tr><td><code>consumer</code></td><td><code>StreamConsumer</code> only</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="baked-in-configuration"><a class="header" href="#baked-in-configuration">Baked-in configuration</a></h3>
+<p>Configuration keys can be added after the stream ID. The macro routes
+each key to the correct builder (producer or consumer) automatically:</p>
+<pre><code class="language-rust ignore">declare::stream!(pub PriceFeed = PriceUpdate, "oracle.price",
+    accept_if: |peer| peer.tags().contains(&amp;tag!("trusted")),
+    producer online_when: |c| c.minimum_of(2),
+    subscribe_if: |peer| true,
+);</code></pre>
+<h4 id="producer-side-keys-inferred-automatically"><a class="header" href="#producer-side-keys-inferred-automatically">Producer-side keys (inferred automatically)</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>accept_if</code></td><td>Predicate for accepting consumer connections</td></tr>
+<tr><td><code>max_consumers</code></td><td>Maximum number of concurrent consumers</td></tr>
+<tr><td><code>buffer_size</code></td><td>Internal channel buffer size</td></tr>
+<tr><td><code>disconnect_lagging</code></td><td>Disconnect slow consumers after duration</td></tr>
+</tbody>
+</table>
+</div>
+<h4 id="consumer-side-keys-inferred-automatically"><a class="header" href="#consumer-side-keys-inferred-automatically">Consumer-side keys (inferred automatically)</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>subscribe_if</code></td><td>Predicate for selecting eligible producers</td></tr>
+<tr><td><code>criteria</code></td><td>Data range criteria</td></tr>
+<tr><td><code>backoff</code></td><td>Retry backoff policy</td></tr>
+</tbody>
+</table>
+</div>
+<h4 id="ambiguous-keys-prefix-with-producer-or-consumer"><a class="header" href="#ambiguous-keys-prefix-with-producer-or-consumer">Ambiguous keys (prefix with <code>producer</code> or <code>consumer</code>)</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>online_when</code></td><td>Conditions for the stream to be considered online</td></tr>
+</tbody>
+</table>
+</div>
+<p>Without a prefix, <code>online_when</code> applies to <strong>both</strong> sides. Use
+<code>producer online_when</code> or <code>consumer online_when</code> to target one:</p>
+<pre><code class="language-rust ignore">stream!(pub PriceFeed = PriceUpdate,
+    producer online_when: |c| c.minimum_of(2),
+    consumer online_when: |c| c.minimum_of(1),
+);</code></pre>
+<h3 id="usage"><a class="header" href="#usage">Usage</a></h3>
+<p>Call the trait methods on the generated struct to create producer or
+consumer instances:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+
+declare::stream!(pub PriceFeed = PriceUpdate, "oracle.price");
+
+struct MyType {
+	producer: ProducerOf&lt;PriceFeed&gt;,
+}
+
+impl MyType {
+	pub fn new(network: &amp;mosaik::Network) -&gt; Self {
+		Self { producer: PriceFeed::producer(network) }
+	}
+}</code></pre>
+<p>The <code>ProducerOf&lt;S&gt;</code> and <code>ConsumerOf&lt;S&gt;</code> type aliases (re-exported at
+the crate root) resolve to the concrete producer or consumer type for
+a given stream definition:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Alias</th><th>Expands to</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ProducerOf&lt;S&gt;</code></td><td><code>&lt;S as StreamProducer&gt;::Producer</code></td></tr>
+<tr><td><code>ConsumerOf&lt;S&gt;</code></td><td><code>&lt;S as StreamConsumer&gt;::Consumer</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="stream-id-derivation"><a class="header" href="#stream-id-derivation">Stream ID derivation</a></h3>
+<p>When no stream ID argument is provided, the <code>StreamId</code> is derived from
+the datum type’s Rust type name via <code>Datum::derived_stream_id()</code>. When
+a string literal is provided, it is hashed with blake3 at compile time
+(or decoded directly if exactly 64 hex characters). You can also pass
+a <code>const</code> expression:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+
+const MY_STREAM: StreamId = unique_id!("my.stream");
+declare::stream!(pub MyStream = String, MY_STREAM);</code></pre>
+<h3 id="doc-comments"><a class="header" href="#doc-comments">Doc comments</a></h3>
+<p>Doc comments can be placed before the visibility modifier:</p>
+<pre><code class="language-rust ignore">declare::stream!(
+    /// The primary price oracle feed.
+    pub PriceFeed = PriceUpdate, "oracle.price"
+);</code></pre>
+<h3 id="when-to-use-the-macro-vs-direct-constructors"><a class="header" href="#when-to-use-the-macro-vs-direct-constructors">When to use the macro vs. direct constructors</a></h3>
+<p>Use the <code>stream!</code> macro when:</p>
+<ul>
+<li>Multiple modules or crates reference the same stream.</li>
+<li>You want a single source of truth for the stream ID and configuration.</li>
+<li>You want compile-time checked producer/consumer type aliases via
+<code>ProducerOf&lt;S&gt;</code> / <code>ConsumerOf&lt;S&gt;</code>.</li>
+</ul>
+<p>Use direct constructors (<code>network.streams().produce::&lt;T&gt;()</code>) when:</p>
+<ul>
+<li>You only need the stream in one place.</li>
+<li>The stream ID or configuration is computed at runtime.</li>
+</ul>
+<h2 id="stream-definitions-producerdef--consumerdef"><a class="header" href="#stream-definitions-producerdef--consumerdef">Stream definitions (<code>ProducerDef</code> / <code>ConsumerDef</code>)</a></h2>
+<blockquote>
+<p><strong>Note:</strong> The <a href="#the-stream-macro-recommended"><code>stream!</code> macro</a> is
+now the recommended approach for declaring named stream definitions.
+<code>ProducerDef</code> and <code>ConsumerDef</code> still work and are useful when you
+need an explicit definition value (e.g., passing a definition as a
+function argument).</p>
+</blockquote>
+<p>Instead of passing a <code>StreamId</code> to each builder call, you can define a
+stream’s identity once as a constant and create builders from it.</p>
+<pre><code class="language-rust ignore">use mosaik::{unique_id, streams::{ProducerDef, ConsumerDef}};
+
+const PRICES: ProducerDef&lt;PriceUpdate&gt; =
+	ProducerDef::new(Some(unique_id!("prices")));
+
+// Returns a pre-configured builder
+let producer = PRICES.open(&amp;network).build()?;</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ProducerDef&lt;T&gt;</code></td><td>Producer definition — creates a producer builder</td></tr>
+<tr><td><code>ConsumerDef&lt;T&gt;</code></td><td>Consumer definition — creates a consumer builder</td></tr>
+</tbody>
+</table>
+</div>
+<p>Both types are <code>const</code>-constructible and can be used as top-level
+constants.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="producers"><a class="header" href="#producers">Producers</a></h1>
 <p>A <code>Producer&lt;D&gt;</code> is a handle for sending data of type <code>D</code> to all connected consumers. Multiple <code>Producer</code> handles can exist for the same stream (mpsc pattern) — they share the same underlying fanout sink.</p>
@@ -2995,22 +3176,22 @@ loop {
 <p>The <strong>Collections</strong> subsystem provides replicated, eventually consistent data
 structures that feel like local Rust collections but are automatically
 synchronized across all participating nodes using Raft consensus.</p>
-<pre><code class="language-text">┌────────────────────────────────────────────────────────────────────────┐
-│                   Collections                                          │
-│                                                                        │
+<pre><code class="language-text">┌──────────────────────────────────────────────────────────────────────────┐
+│                   Collections                                            │
+│                                                                          │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌──────┐ │
 │  │   Map    │ │   Vec    │ │   Set    │ │  DEPQ  │ │ Register │ │ Once │ │
 │  │ &lt;K, V&gt;   │ │ &lt;T&gt;      │ │ &lt;T&gt;      │ │&lt;P,K,V&gt; │ │  &lt;T&gt;     │ │ &lt;T&gt;  │ │
 │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └────┬─────┘ └──┬───┘ │
 │       └────────────┴────────────┴─┬─────────┴───────────┴──────────┘     │
-│                                   │                                     │
-│                                   │                                    │
-│                                   │                                    │
-│                  ┌────────────────▼───────────────────┐                │
-│                  │    Groups (Raft Consensus)         │                │
-│                  │    One group per collection        │                │
-│                  └────────────────────────────────────┘                │
-└────────────────────────────────────────────────────────────────────────┘
+│                                   │                                      │
+│                                   │                                      │
+│                                   │                                      │
+│                  ┌────────────────▼───────────────────┐                  │
+│                  │    Groups (Raft Consensus)         │                  │
+│                  │    One group per collection        │                  │
+│                  └────────────────────────────────────┘                  │
+└──────────────────────────────────────────────────────────────────────────┘
 </code></pre>
 <p>Each collection instance creates its own Raft consensus group. Different
 collections (or the same type with different <code>StoreId</code>s) run as independent
@@ -3084,7 +3265,7 @@ parameters:</p>
 <tr><th>Trait</th><th>Required bounds</th><th>Used by</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Value</code></td><td><code>Clone + Debug + Serialize + DeserializeOwned + Hash + PartialEq + Eq + Send + Sync + 'static</code></td><td>All element/value types</td></tr>
+<tr><td><code>Value</code></td><td><code>Clone + Debug + Serialize + DeserializeOwned + Send + Sync + 'static</code></td><td>All element/value types</td></tr>
 <tr><td><code>Key</code></td><td><code>Clone + Serialize + DeserializeOwned + Hash + PartialEq + Eq + Send + Sync + 'static</code></td><td>Map keys, Set elements, PQ keys</td></tr>
 <tr><td><code>OrderedKey</code></td><td><code>Key + Ord</code></td><td>PriorityQueue priorities</td></tr>
 </tbody>
@@ -3105,6 +3286,144 @@ bounds — you never need to implement them manually.</p>
 the same <code>StoreId</code>, because the key type differs. Likewise, a <code>Once&lt;String&gt;</code>
 and a <code>Register&lt;String&gt;</code> with the same <code>StoreId</code> form separate groups because
 the prefix differs.</p>
+<h2 id="the-collection-macro-recommended"><a class="header" href="#the-collection-macro-recommended">The <code>collection!</code> macro (recommended)</a></h2>
+<p>The <code>collection!</code> macro is the recommended way to declare named collection
+definitions. It generates a struct with a compile-time <code>StoreId</code> and
+implements the <code>CollectionReader</code> and/or <code>CollectionWriter</code> traits, so you
+can create readers and writers without repeating the store ID at every call
+site.</p>
+<h3 id="syntax-1"><a class="header" href="#syntax-1">Syntax</a></h3>
+<pre><code class="language-rust ignore">
+use mosaik::*;
+
+// Full (reader + writer):
+declare::collection!(pub Prices = mosaik::collections::Map&lt;String, f64&gt;, "prices");
+
+// Reader only:
+declare::collection!(pub reader Prices = mosaik::collections::Map&lt;String, f64&gt;, "prices");
+
+// Writer only:
+declare::collection!(pub writer Prices = mosaik::collections::Map&lt;String, f64&gt;, "prices");
+
+// With generics:
+declare::collection!(pub Items&lt;T&gt; = mosaik::collections::Vec&lt;T&gt;, "app.items");</code></pre>
+<p>The three modes control which traits are implemented on the generated struct:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Mode</th><th>Implements</th></tr>
+</thead>
+<tbody>
+<tr><td><em>(default)</em></td><td><code>CollectionReader</code> <strong>and</strong> <code>CollectionWriter</code></td></tr>
+<tr><td><code>reader</code></td><td><code>CollectionReader</code> only</td></tr>
+<tr><td><code>writer</code></td><td><code>CollectionWriter</code> only</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="usage-1"><a class="header" href="#usage-1">Usage</a></h3>
+<p>Call the trait methods on the generated struct to create reader or writer
+instances:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+
+declare::collection!(pub MyVec = mosaik::collections::Vec&lt;String&gt;, "my.vec");
+
+struct MyType {
+	reader: ReaderOf&lt;MyVec&gt;,
+}
+
+impl MyType {
+	pub fn new(network: &amp;mosaik::Network) -&gt; Self {
+		Self { reader: MyVec::reader(network) }
+	}
+}</code></pre>
+<p>The <code>ReaderOf&lt;C&gt;</code> and <code>WriterOf&lt;C&gt;</code> type aliases (re-exported at the crate
+root) resolve to the concrete reader or writer type for a given collection
+definition:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Alias</th><th>Expands to</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ReaderOf&lt;C&gt;</code></td><td><code>&lt;C as CollectionReader&gt;::Reader</code></td></tr>
+<tr><td><code>WriterOf&lt;C&gt;</code></td><td><code>&lt;C as CollectionWriter&gt;::Writer</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="store-id-derivation"><a class="header" href="#store-id-derivation">Store ID derivation</a></h3>
+<p>The string literal you pass as the last argument is hashed with blake3 at
+compile time to produce the <code>StoreId</code>. If the string is exactly 64 hex
+characters, it is decoded directly instead of hashed. This matches the
+behavior of <code>unique_id!</code>.</p>
+<h3 id="when-to-use-the-macro-vs-direct-constructors-1"><a class="header" href="#when-to-use-the-macro-vs-direct-constructors-1">When to use the macro vs. direct constructors</a></h3>
+<p>Use the <code>collection!</code> macro when:</p>
+<ul>
+<li>Multiple modules or crates reference the same collection.</li>
+<li>You want a single source of truth for the store ID.</li>
+<li>You want compile-time checked reader/writer type aliases via
+<code>ReaderOf&lt;C&gt;</code> / <code>WriterOf&lt;C&gt;</code>.</li>
+</ul>
+<p>Use direct constructors (<code>Map::writer(&amp;network, store_id)</code>) when:</p>
+<ul>
+<li>You only need the collection in one place.</li>
+<li>The store ID is computed at runtime.</li>
+</ul>
+<h2 id="collection-definitions-collectiondef"><a class="header" href="#collection-definitions-collectiondef">Collection definitions (<code>CollectionDef</code>)</a></h2>
+<blockquote>
+<p><strong>Note:</strong> The <a href="#the-collection-macro-recommended"><code>collection!</code> macro</a> is
+now the recommended approach for declaring named collection definitions.
+<code>CollectionDef</code>, <code>ReaderDef</code>, and <code>WriterDef</code> still work and are useful
+when you need an explicit value (e.g., passing a definition as a function
+argument), but for most use cases the macro is more ergonomic.</p>
+</blockquote>
+<p>Instead of passing a <code>StoreId</code> to each constructor call, you can define a
+collection’s identity once as a constant and create readers and writers from it.</p>
+<pre><code class="language-rust ignore">use mosaik::{unique_id, collections::{CollectionDef, ReaderDef, Map}};
+
+// Define the collection identity as a compile-time constant
+const PRICES: CollectionDef&lt;Map&lt;String, f64&gt;&gt; =
+	CollectionDef::new(unique_id!("prices"));
+
+// Create writer and reader from the definition
+let w = PRICES.writer(&amp;network);
+let r = PRICES.reader(&amp;network);</code></pre>
+<p>The type parameter <code>T</code> on <code>CollectionDef&lt;C, T&gt;</code> encodes the collection’s value
+types as a tuple. For single-type collections it is the type itself; for
+multi-type collections it is a tuple:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Collection</th><th><code>T</code> parameter</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Map&lt;K, V&gt;</code></td><td><code>(K, V)</code></td></tr>
+<tr><td><code>Vec&lt;T&gt;</code></td><td><code>T</code></td></tr>
+<tr><td><code>Set&lt;T&gt;</code></td><td><code>T</code></td></tr>
+<tr><td><code>Register&lt;T&gt;</code></td><td><code>T</code></td></tr>
+<tr><td><code>Once&lt;T&gt;</code></td><td><code>T</code></td></tr>
+<tr><td><code>PriorityQueue&lt;P, K, V&gt;</code></td><td><code>(P, K, V)</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="exporting-reader-only-or-writer-only-definitions"><a class="header" href="#exporting-reader-only-or-writer-only-definitions">Exporting reader-only or writer-only definitions</a></h3>
+<p><code>CollectionDef</code> can produce narrowed definitions that expose only one side of
+the writer/reader split. This is the recommended pattern when a library owns a
+collection and wants to let consumers read from it without granting write
+access:</p>
+<pre><code class="language-rust ignore">// In your library crate:
+pub const PRICES: CollectionDef&lt;Map&lt;String, f64&gt;&gt; =
+	CollectionDef::new(unique_id!("prices"));
+
+// Export only a reader definition for downstream consumers
+pub const PRICES_READER: ReaderDef&lt;Map&lt;String, f64&gt;&gt; = PRICES.as_reader();</code></pre>
+<p>Downstream code uses <code>PRICES_READER</code> without needing the <code>StoreId</code>:</p>
+<pre><code class="language-rust ignore">let reader = my_lib::PRICES_READER.open(&amp;network);
+reader.when().online().await;</code></pre>
+<p>A <code>WriterDef</code> works the same way via <code>as_writer()</code>.</p>
+<p>All three definition types (<code>CollectionDef</code>, <code>ReaderDef</code>, <code>WriterDef</code>) are
+<code>const</code>-constructible and can be used as top-level constants. See
+<a href="#writerreader-pattern">Writer/Reader Pattern</a> for more on the
+writer/reader split.</p>
 <h2 id="version-tracking"><a class="header" href="#version-tracking">Version tracking</a></h2>
 <p>All mutating operations return a <code>Version</code>, which wraps the Raft log <code>Index</code>
 at which the mutation will be committed:</p>
@@ -4163,6 +4482,58 @@ Collection::reader(&amp;network, store_id)
 Collection::reader_with_config(&amp;network, store_id, sync_config)</code></pre>
 <p>The <code>StoreId</code> and <code>SyncConfig</code> must match between writers and readers for them
 to join the same consensus group.</p>
+<h3 id="construction-from-the-collection-macro-recommended"><a class="header" href="#construction-from-the-collection-macro-recommended">Construction from the <code>collection!</code> macro (recommended)</a></h3>
+<p>The <code>collection!</code> macro declares a named collection definition with a
+compile-time <code>StoreId</code>. It generates a struct and implements
+<code>CollectionReader</code> and/or <code>CollectionWriter</code>, letting you create readers
+and writers without repeating the store ID.</p>
+<pre><code class="language-rust ignore">use mosaik::{collection, collections::CollectionWriter, WriterOf};
+
+// Full — implements both CollectionReader and CollectionWriter
+collection!(pub Tags = mosaik::collections::Set&lt;String&gt;, "tags");
+
+let writer: WriterOf&lt;Tags&gt; = Tags::writer(&amp;network);
+
+// Reader-only — implements CollectionReader only
+collection!(pub reader TagsReader = mosaik::collections::Set&lt;String&gt;, "tags");
+
+// Writer-only — implements CollectionWriter only
+collection!(pub writer TagsWriter = mosaik::collections::Set&lt;String&gt;, "tags");</code></pre>
+<p>Use <code>ReaderOf&lt;C&gt;</code> and <code>WriterOf&lt;C&gt;</code> (re-exported at <code>mosaik::ReaderOf</code> /
+<code>mosaik::WriterOf</code>) to refer to the concrete reader or writer types:</p>
+<pre><code class="language-rust ignore">use mosaik::{collection, collections::CollectionReader, ReaderOf};
+
+collection!(pub reader Logs = mosaik::collections::Vec&lt;String&gt;, "app.logs");
+
+fn subscribe(network: &amp;mosaik::Network) -&gt; ReaderOf&lt;Logs&gt; {
+	Logs::reader(network)
+}</code></pre>
+<p>See the <a href="#the-collection-macro-recommended">collection! macro section</a>
+for the full syntax reference, mode table, and guidance on when to use the
+macro vs. direct constructors.</p>
+<h3 id="construction-from-a-collectiondef"><a class="header" href="#construction-from-a-collectiondef">Construction from a <code>CollectionDef</code></a></h3>
+<p>As an alternative, you can define a collection’s identity with <code>CollectionDef</code>
+and derive readers and writers from it. This is useful when you need an explicit
+definition value (e.g., passing it as a function argument).</p>
+<pre><code class="language-rust ignore">use mosaik::{unique_id, collections::{CollectionDef, ReaderDef, WriterDef, Set}};
+
+// Full definition — can create both writers and readers
+const TAGS: CollectionDef&lt;Set&lt;String&gt;&gt; =
+	CollectionDef::new(unique_id!("tags"));
+
+let writer = TAGS.writer(&amp;network);
+let reader = TAGS.reader(&amp;network);
+
+// Narrowed definitions — expose only one side
+const TAGS_READER: ReaderDef&lt;Set&lt;String&gt;&gt; = TAGS.as_reader();
+const TAGS_WRITER: WriterDef&lt;Set&lt;String&gt;&gt; = TAGS.as_writer();
+
+let r = TAGS_READER.open(&amp;network);
+let w = TAGS_WRITER.open(&amp;network);</code></pre>
+<p>This pattern is especially useful for libraries that own a collection and want
+to export a <code>ReaderDef</code> so downstream code can subscribe without knowing the
+<code>StoreId</code>. See the <a href="#collection-definitions-collectiondef">CollectionDef section</a>
+for the full type-parameter mapping.</p>
 <h2 id="how-it-works-2"><a class="header" href="#how-it-works-2">How it works</a></h2>
 <p>Internally, the const-generic boolean controls two things:</p>
 <ol>
@@ -4201,8 +4572,7 @@ trait bounds:</p>
 <h3 id="value"><a class="header" href="#value">Value</a></h3>
 <p>Required for all element and value types:</p>
 <pre><code class="language-rust ignore">pub trait Value:
-    Clone + Debug + Serialize + DeserializeOwned
-    + Hash + PartialEq + Eq + Send + Sync + 'static
+    Clone + Debug + Serialize + DeserializeOwned + Send + Sync + 'static
 {}
 
 // Blanket impl — any conforming type is a Value
@@ -5520,6 +5890,187 @@ let bootstrap = Network::builder()
     .network_id("my-network")
     .secret_key(key)
     .build().await?;</code></pre>
+<hr>
+<h2 id="the-collection-macro"><a class="header" href="#the-collection-macro">The <code>collection!</code> macro</a></h2>
+<p>The recommended way to declare named collection definitions. It generates a
+struct with a compile-time <code>StoreId</code> and implements <code>CollectionReader</code> and/or
+<code>CollectionWriter</code>.</p>
+<pre><code class="language-rust ignore">use mosaik::collection;
+
+// Full (reader + writer)
+collection!(pub Prices = mosaik::collections::Map&lt;String, f64&gt;, "prices");
+
+// Reader only
+collection!(pub reader Prices = mosaik::collections::Map&lt;String, f64&gt;, "prices");
+
+// Writer only
+collection!(pub writer Prices = mosaik::collections::Map&lt;String, f64&gt;, "prices");
+
+// With generics
+collection!(pub Items&lt;T&gt; = mosaik::collections::Vec&lt;T&gt;, "app.items");</code></pre>
+<p>The store ID string is hashed with blake3 at compile time (or decoded
+directly if it is exactly 64 hex characters).</p>
+<p>See <a href="#the-collection-macro-recommended">Collections &gt; collection! macro</a>
+for the full syntax reference, mode table, and usage examples.</p>
+<h2 id="collection-traits-and-type-aliases"><a class="header" href="#collection-traits-and-type-aliases">Collection traits and type aliases</a></h2>
+<p>These traits and aliases work with types generated by the <code>collection!</code> macro.
+The traits live in <code>mosaik::collections</code>; the type aliases are re-exported at
+the crate root.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Item</th><th>Kind</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CollectionReader</code></td><td>Trait</td><td>Provides <code>fn reader(&amp;Network) -&gt; Self::Reader</code></td></tr>
+<tr><td><code>CollectionWriter</code></td><td>Trait</td><td>Provides <code>fn writer(&amp;Network) -&gt; Self::Writer</code></td></tr>
+<tr><td><code>ReaderOf&lt;C&gt;</code></td><td>Type alias</td><td><code>&lt;C as CollectionReader&gt;::Reader</code> — the concrete reader</td></tr>
+<tr><td><code>WriterOf&lt;C&gt;</code></td><td>Type alias</td><td><code>&lt;C as CollectionWriter&gt;::Writer</code> — the concrete writer</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-rust ignore">use mosaik::{collection, collections::CollectionReader, ReaderOf};
+
+collection!(pub MyVec = mosaik::collections::Vec&lt;String&gt;, "my.vec");
+
+// ReaderOf&lt;MyVec&gt; resolves to VecReader&lt;String&gt;
+let reader: ReaderOf&lt;MyVec&gt; = MyVec::reader(&amp;network);</code></pre>
+<h2 id="the-stream-macro"><a class="header" href="#the-stream-macro">The <code>stream!</code> macro</a></h2>
+<p>The recommended way to declare named stream definitions. It generates a
+struct with a compile-time <code>StreamId</code> and implements <code>StreamProducer</code>
+and/or <code>StreamConsumer</code>.</p>
+<pre><code class="language-rust ignore">use mosaik::stream;
+
+// Type-derived StreamId (most common)
+stream!(pub PriceFeed = PriceUpdate);
+
+// Explicit StreamId
+stream!(pub PriceFeed = PriceUpdate, "oracle.price");
+
+// Producer only
+stream!(pub producer PriceFeed = PriceUpdate, "oracle.price");
+
+// Consumer only
+stream!(pub consumer PriceFeed = PriceUpdate, "oracle.price");
+
+// With configuration
+stream!(pub PriceFeed = PriceUpdate, "oracle.price",
+    accept_if: |peer| peer.tags().contains(&amp;tag!("trusted")),
+    producer online_when: |c| c.minimum_of(2),
+    subscribe_if: |peer| true,
+);</code></pre>
+<p>The stream ID string is hashed with blake3 at compile time (or decoded
+directly if it is exactly 64 hex characters). When omitted, the
+<code>StreamId</code> is derived from the datum type name.</p>
+<p>See <a href="#the-stream-macro-recommended">Streams &gt; stream! macro</a>
+for the full syntax reference, configuration keys, and usage examples.</p>
+<h2 id="stream-traits-and-type-aliases"><a class="header" href="#stream-traits-and-type-aliases">Stream traits and type aliases</a></h2>
+<p>These traits and aliases work with types generated by the <code>stream!</code> macro.
+The traits live in <code>mosaik::streams</code>; the type aliases are re-exported at
+the crate root.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Item</th><th>Kind</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>StreamProducer</code></td><td>Trait</td><td>Provides <code>fn producer(&amp;Network) -&gt; Self::Producer</code></td></tr>
+<tr><td><code>StreamConsumer</code></td><td>Trait</td><td>Provides <code>fn consumer(&amp;Network) -&gt; Self::Consumer</code></td></tr>
+<tr><td><code>ProducerOf&lt;S&gt;</code></td><td>Type alias</td><td><code>&lt;S as StreamProducer&gt;::Producer</code> — the concrete producer</td></tr>
+<tr><td><code>ConsumerOf&lt;S&gt;</code></td><td>Type alias</td><td><code>&lt;S as StreamConsumer&gt;::Consumer</code> — the concrete consumer</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-rust ignore">use mosaik::{stream, streams::StreamProducer, ProducerOf};
+
+stream!(pub PriceFeed = PriceUpdate, "oracle.price");
+
+// ProducerOf&lt;PriceFeed&gt; resolves to Producer&lt;PriceUpdate&gt;
+let producer: ProducerOf&lt;PriceFeed&gt; = PriceFeed::producer(&amp;network);</code></pre>
+<h2 id="stream-definitions-producerdef--consumerdef-1"><a class="header" href="#stream-definitions-producerdef--consumerdef-1">Stream definitions (<code>ProducerDef</code> / <code>ConsumerDef</code>)</a></h2>
+<blockquote>
+<p><strong>Note:</strong> The <a href="#the-stream-macro"><code>stream!</code> macro</a> is now the
+recommended approach. <code>ProducerDef</code> and <code>ConsumerDef</code> still work and
+are useful when you need an explicit definition value.</p>
+</blockquote>
+<p>These types allow you to define a stream’s identity at compile time and
+create pre-configured builders from it. They live in <code>mosaik::streams</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ProducerDef&lt;T&gt;</code></td><td>Producer definition — creates a producer builder</td></tr>
+<tr><td><code>ConsumerDef&lt;T&gt;</code></td><td>Consumer definition — creates a consumer builder</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-rust ignore">use mosaik::{unique_id, streams::ProducerDef};
+
+const PRICES: ProducerDef&lt;PriceUpdate&gt; =
+    ProducerDef::new(Some(unique_id!("prices")));
+
+let producer = PRICES.open(&amp;network).build()?;</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Available on</th><th>Returns</th></tr>
+</thead>
+<tbody>
+<tr><td><code>const fn new(Option&lt;StreamId&gt;)</code></td><td>Both types</td><td><code>Self</code></td></tr>
+<tr><td><code>fn open(&amp;self, &amp;Network)</code></td><td>Both types</td><td>Builder</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="collection-definitions-collectiondef-1"><a class="header" href="#collection-definitions-collectiondef-1">Collection definitions (<code>CollectionDef</code>)</a></h2>
+<blockquote>
+<p><strong>Note:</strong> The <a href="#the-collection-macro"><code>collection!</code> macro</a> is now the
+recommended approach. <code>CollectionDef</code>, <code>ReaderDef</code>, and <code>WriterDef</code> still
+work and are useful when you need an explicit definition value.</p>
+</blockquote>
+<p>These types allow you to define a collection’s identity at compile time and
+create readers or writers from it. They live in <code>mosaik::collections</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CollectionDef&lt;C&gt;</code></td><td>Full definition — can create both writers and readers for collection C</td></tr>
+<tr><td><code>ReaderDef&lt;C&gt;</code></td><td>Reader-only definition — typically exported by library authors</td></tr>
+<tr><td><code>WriterDef&lt;C&gt;</code></td><td>Writer-only definition</td></tr>
+<tr><td><code>CollectionFromDef</code></td><td>Trait implemented for all collection types; associates Reader/Writer</td></tr>
+</tbody>
+</table>
+</div>
+<p>The type parameter <code>C</code> is the collection type (e.g., <code>Map&lt;String, u64&gt;</code>) and
+<code>T</code> encodes the value types as a tuple (<code>(String, u64)</code> for Map, <code>T</code> directly
+for single-type collections like <code>Vec&lt;T&gt;</code>).</p>
+<pre><code class="language-rust ignore">use mosaik::{unique_id, collections::{CollectionDef, ReaderDef, Map}};
+
+const MY_MAP: CollectionDef&lt;Map&lt;String, u64&gt;&gt; =
+	CollectionDef::new(unique_id!("my-map"));
+
+const MY_MAP_READER: ReaderDef&lt;Map&lt;String, u64&gt;&gt; =
+	MY_MAP.as_reader();</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Available on</th><th>Returns</th></tr>
+</thead>
+<tbody>
+<tr><td><code>const fn new(StoreId)</code></td><td>All three types</td><td><code>Self</code></td></tr>
+<tr><td><code>const fn as_reader(&amp;self)</code></td><td><code>CollectionDef</code></td><td><code>ReaderDef</code></td></tr>
+<tr><td><code>const fn as_writer(&amp;self)</code></td><td><code>CollectionDef</code></td><td><code>WriterDef</code></td></tr>
+<tr><td><code>fn reader(&amp;self, &amp;Network)</code></td><td><code>CollectionDef</code>, <code>ReaderDef</code></td><td><code>C::Reader</code></td></tr>
+<tr><td><code>fn writer(&amp;self, &amp;Network)</code></td><td><code>CollectionDef</code>, <code>WriterDef</code></td><td><code>C::Writer</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>See <a href="#collection-definitions-collectiondef">Collections &gt; CollectionDef</a>
+for usage examples and the full type-parameter mapping table.</p>
 <hr>
 <h2 id="wire-encoding"><a class="header" href="#wire-encoding">Wire encoding</a></h2>
 <p>All network messages use <strong>postcard</strong> — a compact, <code>#[no_std]</code>-compatible

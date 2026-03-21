@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-2279e034.js";
+            window.path_to_searchindex_js = "../../searchindex-b64055f7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-546f1084.js"></script>
@@ -231,6 +231,58 @@ Collection::reader(&amp;network, store_id)
 Collection::reader_with_config(&amp;network, store_id, sync_config)</code></pre>
 <p>The <code>StoreId</code> and <code>SyncConfig</code> must match between writers and readers for them
 to join the same consensus group.</p>
+<h3 id="construction-from-the-collection-macro-recommended"><a class="header" href="#construction-from-the-collection-macro-recommended">Construction from the <code>collection!</code> macro (recommended)</a></h3>
+<p>The <code>collection!</code> macro declares a named collection definition with a
+compile-time <code>StoreId</code>. It generates a struct and implements
+<code>CollectionReader</code> and/or <code>CollectionWriter</code>, letting you create readers
+and writers without repeating the store ID.</p>
+<pre><code class="language-rust ignore">use mosaik::{collection, collections::CollectionWriter, WriterOf};
+
+// Full — implements both CollectionReader and CollectionWriter
+collection!(pub Tags = mosaik::collections::Set&lt;String&gt;, "tags");
+
+let writer: WriterOf&lt;Tags&gt; = Tags::writer(&amp;network);
+
+// Reader-only — implements CollectionReader only
+collection!(pub reader TagsReader = mosaik::collections::Set&lt;String&gt;, "tags");
+
+// Writer-only — implements CollectionWriter only
+collection!(pub writer TagsWriter = mosaik::collections::Set&lt;String&gt;, "tags");</code></pre>
+<p>Use <code>ReaderOf&lt;C&gt;</code> and <code>WriterOf&lt;C&gt;</code> (re-exported at <code>mosaik::ReaderOf</code> /
+<code>mosaik::WriterOf</code>) to refer to the concrete reader or writer types:</p>
+<pre><code class="language-rust ignore">use mosaik::{collection, collections::CollectionReader, ReaderOf};
+
+collection!(pub reader Logs = mosaik::collections::Vec&lt;String&gt;, "app.logs");
+
+fn subscribe(network: &amp;mosaik::Network) -&gt; ReaderOf&lt;Logs&gt; {
+	Logs::reader(network)
+}</code></pre>
+<p>See the <a href="../collections.html#the-collection-macro-recommended">collection! macro section</a>
+for the full syntax reference, mode table, and guidance on when to use the
+macro vs. direct constructors.</p>
+<h3 id="construction-from-a-collectiondef"><a class="header" href="#construction-from-a-collectiondef">Construction from a <code>CollectionDef</code></a></h3>
+<p>As an alternative, you can define a collection’s identity with <code>CollectionDef</code>
+and derive readers and writers from it. This is useful when you need an explicit
+definition value (e.g., passing it as a function argument).</p>
+<pre><code class="language-rust ignore">use mosaik::{unique_id, collections::{CollectionDef, ReaderDef, WriterDef, Set}};
+
+// Full definition — can create both writers and readers
+const TAGS: CollectionDef&lt;Set&lt;String&gt;&gt; =
+	CollectionDef::new(unique_id!("tags"));
+
+let writer = TAGS.writer(&amp;network);
+let reader = TAGS.reader(&amp;network);
+
+// Narrowed definitions — expose only one side
+const TAGS_READER: ReaderDef&lt;Set&lt;String&gt;&gt; = TAGS.as_reader();
+const TAGS_WRITER: WriterDef&lt;Set&lt;String&gt;&gt; = TAGS.as_writer();
+
+let r = TAGS_READER.open(&amp;network);
+let w = TAGS_WRITER.open(&amp;network);</code></pre>
+<p>This pattern is especially useful for libraries that own a collection and want
+to export a <code>ReaderDef</code> so downstream code can subscribe without knowing the
+<code>StoreId</code>. See the <a href="../collections.html#collection-definitions-collectiondef">CollectionDef section</a>
+for the full type-parameter mapping.</p>
 <h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
 <p>Internally, the const-generic boolean controls two things:</p>
 <ol>
@@ -269,8 +321,7 @@ trait bounds:</p>
 <h3 id="value"><a class="header" href="#value">Value</a></h3>
 <p>Required for all element and value types:</p>
 <pre><code class="language-rust ignore">pub trait Value:
-    Clone + Debug + Serialize + DeserializeOwned
-    + Hash + PartialEq + Eq + Send + Sync + 'static
+    Clone + Debug + Serialize + DeserializeOwned + Send + Sync + 'static
 {}
 
 // Blanket impl — any conforming type is a Value

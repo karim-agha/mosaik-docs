@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b64055f7.js";
+            window.path_to_searchindex_js = "../searchindex-2f1a5c19.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-546f1084.js"></script>
@@ -386,6 +386,17 @@ impl MyType {
 		Self { producer: PriceFeed::producer(network) }
 	}
 }</code></pre>
+<h4 id="online_producer--online_consumer"><a class="header" href="#online_producer--online_consumer"><code>online_producer</code> / <code>online_consumer</code></a></h4>
+<p>Each trait also provides a convenience method that creates the handle and
+awaits <code>.when().online()</code> in a single call:</p>
+<pre><code class="language-rust ignore">// These two are equivalent:
+let producer = PriceFeed::producer(&amp;network);
+producer.when().online().await;
+
+let producer = PriceFeed::online_producer(&amp;network).await;</code></pre>
+<p>This is useful when you don’t need to do anything between construction and
+the online check — it reduces the common two-step pattern to a single
+expression.</p>
 <p>The <code>ProducerOf&lt;S&gt;</code> and <code>ConsumerOf&lt;S&gt;</code> type aliases (re-exported at
 the crate root) resolve to the concrete producer or consumer type for
 a given stream definition:</p>

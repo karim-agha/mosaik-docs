@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b64055f7.js";
+            window.path_to_searchindex_js = "../searchindex-2f1a5c19.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-546f1084.js"></script>
@@ -344,6 +344,17 @@ impl MyType {
 		Self { reader: MyVec::reader(network) }
 	}
 }</code></pre>
+<h4 id="online_reader--online_writer"><a class="header" href="#online_reader--online_writer"><code>online_reader</code> / <code>online_writer</code></a></h4>
+<p>Each trait also provides a convenience method that creates the handle and
+awaits <code>.when().online()</code> in a single call:</p>
+<pre><code class="language-rust ignore">// These two are equivalent:
+let reader = MyVec::reader(&amp;network);
+reader.when().online().await;
+
+let reader = MyVec::online_reader(&amp;network).await;</code></pre>
+<p>This is useful when you don’t need to do anything between construction and
+the online check — it reduces the common two-step pattern to a single
+expression.</p>
 <p>The <code>ReaderOf&lt;C&gt;</code> and <code>WriterOf&lt;C&gt;</code> type aliases (re-exported at the crate
 root) resolve to the concrete reader or writer type for a given collection
 definition:</p>

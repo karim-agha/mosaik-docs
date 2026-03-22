@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b64055f7.js";
+            window.path_to_searchindex_js = "../searchindex-2f1a5c19.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-546f1084.js"></script>
@@ -181,7 +181,8 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="identity--networking"><a class="header" href="#identity--networking">Identity &amp; Networking</a></h1>
-<p>Mosaik’s identity system is built on cryptographic keys and content-addressed hashing. Every identifier in the system — networks, peers, streams, groups, collections — is a 32-byte <code>Digest</code> (blake3 hash).</p>
+<p>Mosaik’s identity system is built on cryptographic keys and <strong>intent-addressed</strong> hashing. Every identifier in the system — networks, peers, streams, groups, collections — is a 32-byte <code>Digest</code> (blake3 hash).</p>
+<p>Unlike content-addressed systems (Git, IPFS) where names are derived from the data itself, mosaik identifiers are derived from the <em>intent</em> — a human-readable string describing the resource’s purpose. Two nodes that independently declare the same intent (e.g., <code>"prices"</code>) converge on the same identifier without any prior coordination. This makes forward references and independent declaration possible: you can name a resource before it exists.</p>
 <h2 id="uniqueid-the-universal-identifier"><a class="header" href="#uniqueid-the-universal-identifier">UniqueId: The Universal Identifier</a></h2>
 <p>At the core of mosaik’s identity system is <code>Digest</code> — a 32-byte blake3 hash that serves as the universal identifier type:</p>
 <pre><code class="language-rust ignore">use mosaik::Digest;

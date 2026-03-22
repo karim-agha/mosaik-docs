@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b64055f7.js";
+            window.path_to_searchindex_js = "../searchindex-2f1a5c19.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-546f1084.js"></script>
@@ -285,8 +285,10 @@ collection!(pub writer Prices = mosaik::collections::Map&lt;String, f64&gt;, "pr
 
 // With generics
 collection!(pub Items&lt;T&gt; = mosaik::collections::Vec&lt;T&gt;, "app.items");</code></pre>
-<p>The store ID string is hashed with blake3 at compile time (or decoded
-directly if it is exactly 64 hex characters).</p>
+<p>The store ID string is <strong>intent-addressed</strong> — hashed with blake3 at compile
+time (or decoded directly if it is exactly 64 hex characters). Two nodes that
+independently declare the same string converge on the same <code>StoreId</code> without
+coordination.</p>
 <p>See <a href="../subsystems/collections.html#the-collection-macro-recommended">Collections &gt; collection! macro</a>
 for the full syntax reference, mode table, and usage examples.</p>
 <h2 id="collection-traits-and-type-aliases"><a class="header" href="#collection-traits-and-type-aliases">Collection traits and type aliases</a></h2>
@@ -299,13 +301,15 @@ the crate root.</p>
 <tr><th>Item</th><th>Kind</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>CollectionReader</code></td><td>Trait</td><td>Provides <code>fn reader(&amp;Network) -&gt; Self::Reader</code></td></tr>
-<tr><td><code>CollectionWriter</code></td><td>Trait</td><td>Provides <code>fn writer(&amp;Network) -&gt; Self::Writer</code></td></tr>
+<tr><td><code>CollectionReader</code></td><td>Trait</td><td>Provides <code>fn reader(&amp;Network)</code> and <code>fn online_reader(&amp;Network)</code></td></tr>
+<tr><td><code>CollectionWriter</code></td><td>Trait</td><td>Provides <code>fn writer(&amp;Network)</code> and <code>fn online_writer(&amp;Network)</code></td></tr>
 <tr><td><code>ReaderOf&lt;C&gt;</code></td><td>Type alias</td><td><code>&lt;C as CollectionReader&gt;::Reader</code> — the concrete reader</td></tr>
 <tr><td><code>WriterOf&lt;C&gt;</code></td><td>Type alias</td><td><code>&lt;C as CollectionWriter&gt;::Writer</code> — the concrete writer</td></tr>
 </tbody>
 </table>
 </div>
+<p>The <code>online_reader</code> and <code>online_writer</code> methods create the handle and await
+<code>.when().online()</code> in a single call, reducing the common two-step pattern.</p>
 <pre><code class="language-rust ignore">use mosaik::{collection, collections::CollectionReader, ReaderOf};
 
 collection!(pub MyVec = mosaik::collections::Vec&lt;String&gt;, "my.vec");
@@ -336,9 +340,11 @@ stream!(pub PriceFeed = PriceUpdate, "oracle.price",
     producer online_when: |c| c.minimum_of(2),
     subscribe_if: |peer| true,
 );</code></pre>
-<p>The stream ID string is hashed with blake3 at compile time (or decoded
-directly if it is exactly 64 hex characters). When omitted, the
-<code>StreamId</code> is derived from the datum type name.</p>
+<p>The stream ID string is <strong>intent-addressed</strong> — hashed with blake3 at compile
+time (or decoded directly if it is exactly 64 hex characters). When omitted,
+the <code>StreamId</code> is derived from the datum type name. Two nodes that
+independently declare the same string converge on the same <code>StreamId</code> without
+coordination.</p>
 <p>See <a href="../subsystems/streams.html#the-stream-macro-recommended">Streams &gt; stream! macro</a>
 for the full syntax reference, configuration keys, and usage examples.</p>
 <h2 id="stream-traits-and-type-aliases"><a class="header" href="#stream-traits-and-type-aliases">Stream traits and type aliases</a></h2>
@@ -351,13 +357,16 @@ the crate root.</p>
 <tr><th>Item</th><th>Kind</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>StreamProducer</code></td><td>Trait</td><td>Provides <code>fn producer(&amp;Network) -&gt; Self::Producer</code></td></tr>
-<tr><td><code>StreamConsumer</code></td><td>Trait</td><td>Provides <code>fn consumer(&amp;Network) -&gt; Self::Consumer</code></td></tr>
+<tr><td><code>StreamProducer</code></td><td>Trait</td><td>Provides <code>fn producer(&amp;Network)</code> and <code>fn online_producer(&amp;Network)</code></td></tr>
+<tr><td><code>StreamConsumer</code></td><td>Trait</td><td>Provides <code>fn consumer(&amp;Network)</code> and <code>fn online_consumer(&amp;Network)</code></td></tr>
 <tr><td><code>ProducerOf&lt;S&gt;</code></td><td>Type alias</td><td><code>&lt;S as StreamProducer&gt;::Producer</code> — the concrete producer</td></tr>
 <tr><td><code>ConsumerOf&lt;S&gt;</code></td><td>Type alias</td><td><code>&lt;S as StreamConsumer&gt;::Consumer</code> — the concrete consumer</td></tr>
 </tbody>
 </table>
 </div>
+<p>The <code>online_producer</code> and <code>online_consumer</code> methods create the handle and
+await <code>.when().online()</code> in a single call, reducing the common two-step
+pattern.</p>
 <pre><code class="language-rust ignore">use mosaik::{stream, streams::StreamProducer, ProducerOf};
 
 stream!(pub PriceFeed = PriceUpdate, "oracle.price");

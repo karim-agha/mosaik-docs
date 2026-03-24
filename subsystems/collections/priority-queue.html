@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-2f1a5c19.js";
+            window.path_to_searchindex_js = "../../searchindex-7c34fce4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-546f1084.js"></script>
+        <script src="../../toc-c7dd45ca.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -343,7 +343,7 @@ syntaxes work:</p>
 <h3 id="compare-and-swap-semantics"><a class="header" href="#compare-and-swap-semantics">Compare-and-swap semantics</a></h3>
 <p><code>compare_exchange_value</code> atomically checks the value of an existing entry and
 only applies the mutation if it matches the <code>expected</code> parameter. Unlike
-<code>compare_exchange</code> on <code>Map</code> and <code>Register</code>, this method operates <strong>only on the
+<code>compare_exchange</code> on <code>Map</code> and <code>Cell</code>, this method operates <strong>only on the
 value</strong> — the entry’s priority is always preserved.</p>
 <ul>
 <li><strong><code>key</code></strong>: The key of the entry to operate on (must already exist).</li>

@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2f1a5c19.js";
+            window.path_to_searchindex_js = "../searchindex-7c34fce4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-546f1084.js"></script>
+        <script src="../toc-c7dd45ca.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -188,7 +188,7 @@ synchronized across all participating nodes using Raft consensus.</p>
 │                   Collections                                            │
 │                                                                          │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌──────┐ │
-│  │   Map    │ │   Vec    │ │   Set    │ │  DEPQ  │ │ Register │ │ Once │ │
+│  │   Map    │ │   Vec    │ │   Set    │ │  DEPQ  │ │ Cell │ │ Once │ │
 │  │ &lt;K, V&gt;   │ │ &lt;T&gt;      │ │ &lt;T&gt;      │ │&lt;P,K,V&gt; │ │  &lt;T&gt;     │ │ &lt;T&gt;  │ │
 │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └────┬─────┘ └──┬───┘ │
 │       └────────────┴────────────┴─┬─────────┴───────────┴──────────┘     │
@@ -230,8 +230,8 @@ using a const-generic boolean:</p>
 <tr><th>Mode</th><th>Type alias</th><th>Can write?</th><th>Leadership priority</th></tr>
 </thead>
 <tbody>
-<tr><td><strong>Writer</strong></td><td><code>MapWriter&lt;K,V&gt;</code>, <code>VecWriter&lt;T&gt;</code>, <code>RegisterWriter&lt;T&gt;</code>, <code>OnceWriter&lt;T&gt;</code> etc.</td><td>Yes</td><td>Normal</td></tr>
-<tr><td><strong>Reader</strong></td><td><code>MapReader&lt;K,V&gt;</code>, <code>VecReader&lt;T&gt;</code>, <code>RegisterReader&lt;T&gt;</code>, <code>OnceReader&lt;T&gt;</code> etc.</td><td>No</td><td>Deprioritized</td></tr>
+<tr><td><strong>Writer</strong></td><td><code>MapWriter&lt;K,V&gt;</code>, <code>VecWriter&lt;T&gt;</code>, <code>CellWriter&lt;T&gt;</code>, <code>OnceWriter&lt;T&gt;</code> etc.</td><td>Yes</td><td>Normal</td></tr>
+<tr><td><strong>Reader</strong></td><td><code>MapReader&lt;K,V&gt;</code>, <code>VecReader&lt;T&gt;</code>, <code>CellReader&lt;T&gt;</code>, <code>OnceReader&lt;T&gt;</code> etc.</td><td>No</td><td>Deprioritized</td></tr>
 </tbody>
 </table>
 </div>
@@ -253,8 +253,8 @@ let r = Map::&lt;String, u64&gt;::reader(&amp;network, store_id);</code></pre>
 <tr><td><a href="collections/map.html"><code>Map&lt;K, V&gt;</code></a></td><td>Unordered key-value map</td><td><code>im::HashMap</code> (deterministic)</td></tr>
 <tr><td><a href="collections/vec.html"><code>Vec&lt;T&gt;</code></a></td><td>Ordered, index-addressable sequence</td><td><code>im::Vector</code></td></tr>
 <tr><td><a href="collections/set.html"><code>Set&lt;T&gt;</code></a></td><td>Unordered set of unique values</td><td><code>im::HashSet</code> (deterministic)</td></tr>
-<tr><td><a href="collections/register.html"><code>Register&lt;T&gt;</code></a></td><td>Single-value register</td><td><code>Option&lt;T&gt;</code></td></tr>
-<tr><td><a href="collections/once.html"><code>Once&lt;T&gt;</code></a></td><td>Write-once register</td><td><code>Option&lt;T&gt;</code></td></tr>
+<tr><td><a href="collections/cell.html"><code>Cell&lt;T&gt;</code></a></td><td>Single-value cell</td><td><code>Option&lt;T&gt;</code></td></tr>
+<tr><td><a href="collections/once.html"><code>Once&lt;T&gt;</code></a></td><td>Write-once cell</td><td><code>Option&lt;T&gt;</code></td></tr>
 <tr><td><a href="collections/priority-queue.html"><code>PriorityQueue&lt;P, K, V&gt;</code></a></td><td>Double-ended priority queue</td><td><code>im::HashMap</code> + <code>im::OrdMap</code></td></tr>
 </tbody>
 </table>
@@ -262,7 +262,7 @@ let r = Map::&lt;String, u64&gt;::reader(&amp;network, store_id);</code></pre>
 <p>Most collections use the <a href="https://docs.rs/im"><code>im</code> crate</a> for their internal
 state, which provides <strong>O(1) structural sharing</strong> — cloning a snapshot of the
 entire collection is essentially free. This is critical for the snapshot-based
-state sync mechanism. <code>Register</code> and <code>Once</code> use a plain <code>Option&lt;T&gt;</code> since they
+state sync mechanism. <code>Cell</code> and <code>Once</code> use a plain <code>Option&lt;T&gt;</code> since they
 hold at most one value.</p>
 <h2 id="trait-requirements"><a class="header" href="#trait-requirements">Trait requirements</a></h2>
 <p>Collections use blanket-implemented marker traits to constrain their type
@@ -292,7 +292,7 @@ bounds — you never need to implement them manually.</p>
 <p>This means <code>Map::&lt;String, u64&gt;::writer(&amp;net, id)</code> and
 <code>Map::&lt;u32, u64&gt;::writer(&amp;net, id)</code> will join <strong>different</strong> groups even with
 the same <code>StoreId</code>, because the key type differs. Likewise, a <code>Once&lt;String&gt;</code>
-and a <code>Register&lt;String&gt;</code> with the same <code>StoreId</code> form separate groups because
+and a <code>Cell&lt;String&gt;</code> with the same <code>StoreId</code> form separate groups because
 the prefix differs.</p>
 <h2 id="the-collection-macro-recommended"><a class="header" href="#the-collection-macro-recommended">The <code>collection!</code> macro (recommended)</a></h2>
 <p>The <code>collection!</code> macro is the recommended way to declare named collection
@@ -315,19 +315,23 @@ declare::collection!(pub writer Prices = mosaik::collections::Map&lt;String, f64
 
 // With generics:
 declare::collection!(pub Items&lt;T&gt; = mosaik::collections::Vec&lt;T&gt;, "app.items");</code></pre>
-<p>The three modes control which traits are implemented on the generated struct:</p>
+<p>The three modes control the public API of the generated struct:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Mode</th><th>Implements</th></tr>
+<tr><th>Mode</th><th>Public</th><th><code>pub(crate)</code></th></tr>
 </thead>
 <tbody>
-<tr><td><em>(default)</em></td><td><code>CollectionReader</code> <strong>and</strong> <code>CollectionWriter</code></td></tr>
-<tr><td><code>reader</code></td><td><code>CollectionReader</code> only</td></tr>
-<tr><td><code>writer</code></td><td><code>CollectionWriter</code> only</td></tr>
+<tr><td><em>(default)</em></td><td><code>CollectionReader</code> <strong>and</strong> <code>CollectionWriter</code></td><td>—</td></tr>
+<tr><td><code>reader</code></td><td><code>CollectionReader</code></td><td>inherent <code>writer()</code> / <code>online_writer()</code></td></tr>
+<tr><td><code>writer</code></td><td><code>CollectionWriter</code></td><td>inherent <code>reader()</code> / <code>online_reader()</code></td></tr>
 </tbody>
 </table>
 </div>
+<p>In <code>reader</code> or <code>writer</code> mode, the restricted side is still available as
+inherent methods with <code>pub(crate)</code> visibility. This means the crate that
+defines the collection can still instantiate both sides internally, while
+downstream consumers only see the publicly exported trait.</p>
 <h3 id="usage"><a class="header" href="#usage">Usage</a></h3>
 <p>Call the trait methods on the generated struct to create reader or writer
 instances:</p>
@@ -418,7 +422,7 @@ multi-type collections it is a tuple:</p>
 <tr><td><code>Map&lt;K, V&gt;</code></td><td><code>(K, V)</code></td></tr>
 <tr><td><code>Vec&lt;T&gt;</code></td><td><code>T</code></td></tr>
 <tr><td><code>Set&lt;T&gt;</code></td><td><code>T</code></td></tr>
-<tr><td><code>Register&lt;T&gt;</code></td><td><code>T</code></td></tr>
+<tr><td><code>Cell&lt;T&gt;</code></td><td><code>T</code></td></tr>
 <tr><td><code>Once&lt;T&gt;</code></td><td><code>T</code></td></tr>
 <tr><td><code>PriorityQueue&lt;P, K, V&gt;</code></td><td><code>(P, K, V)</code></td></tr>
 </tbody>

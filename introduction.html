@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2f1a5c19.js";
+            window.path_to_searchindex_js = "searchindex-7c34fce4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-546f1084.js"></script>
+        <script src="toc-c7dd45ca.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -211,7 +211,7 @@
 ├──────────┬──────────┬──────────┬────────────────┤
 │ Discovery│ Streams  │  Groups  │  Collections   │
 │  gossip, │  typed   │   Raft   │  Map/Vec/Set/  │
-│  catalog │ pub/sub  │ consensus│  Register/Once │
+│  catalog │ pub/sub  │ consensus│  Cell/Once │
 │          │          │  groups  │  PriorityQueue │
 └──────────┴──────────┴──────────┴────────────────┘
 </code></pre>
@@ -220,7 +220,7 @@
 <li><strong>Discovery</strong> uses gossip to maintain a catalog of all peers, their capabilities, and their available streams/groups.</li>
 <li><strong>Streams</strong> provides typed, async pub/sub channels. Any serializable Rust type can be streamed between nodes.</li>
 <li><strong>Groups</strong> implements Raft consensus for clusters of nodes that need shared state and leader election.</li>
-<li><strong>Collections</strong> builds on Groups to offer replicated data structures (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>, <code>PriorityQueue</code>) that stay synchronized across nodes.</li>
+<li><strong>Collections</strong> builds on Groups to offer replicated data structures (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, <code>PriorityQueue</code>) that stay synchronized across nodes.</li>
 </ul>
 <h2 id="who-should-read-this-book"><a class="header" href="#who-should-read-this-book">Who Should Read This Book</a></h2>
 <p>This book serves two audiences:</p>

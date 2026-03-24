@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2f1a5c19.js";
+            window.path_to_searchindex_js = "searchindex-7c34fce4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-546f1084.js"></script>
+        <script src="toc-c7dd45ca.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -209,7 +209,7 @@
 ├──────────┬──────────┬──────────┬────────────────┤
 │ Discovery│ Streams  │  Groups  │  Collections   │
 │  gossip, │  typed   │   Raft   │  Map/Vec/Set/  │
-│  catalog │ pub/sub  │ consensus│  Register/Once │
+│  catalog │ pub/sub  │ consensus│  Cell/Once │
 │          │          │  groups  │  PriorityQueue │
 └──────────┴──────────┴──────────┴────────────────┘
 </code></pre>
@@ -218,7 +218,7 @@
 <li><strong>Discovery</strong> uses gossip to maintain a catalog of all peers, their capabilities, and their available streams/groups.</li>
 <li><strong>Streams</strong> provides typed, async pub/sub channels. Any serializable Rust type can be streamed between nodes.</li>
 <li><strong>Groups</strong> implements Raft consensus for clusters of nodes that need shared state and leader election.</li>
-<li><strong>Collections</strong> builds on Groups to offer replicated data structures (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>, <code>PriorityQueue</code>) that stay synchronized across nodes.</li>
+<li><strong>Collections</strong> builds on Groups to offer replicated data structures (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, <code>PriorityQueue</code>) that stay synchronized across nodes.</li>
 </ul>
 <h2 id="who-should-read-this-book"><a class="header" href="#who-should-read-this-book">Who Should Read This Book</a></h2>
 <p>This book serves two audiences:</p>
@@ -263,7 +263,7 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 <tr><td><strong>Self-organizing</strong></td><td>Nodes discover each other via gossip and form the correct topology automatically</td></tr>
 <tr><td><strong>Typed pub/sub</strong></td><td>Stream any serializable Rust type between nodes with backpressure and filtering</td></tr>
 <tr><td><strong>Raft consensus</strong></td><td>Form availability groups with leader election and replicated state machines</td></tr>
-<tr><td><strong>Replicated collections</strong></td><td>Distributed <code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>, and <code>PriorityQueue</code> with strong consistency</td></tr>
+<tr><td><strong>Replicated collections</strong></td><td>Distributed <code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, and <code>PriorityQueue</code> with strong consistency</td></tr>
 <tr><td><strong>QUIC transport</strong></td><td>Built on <a href="https://github.com/n0-computer/iroh">iroh</a> for modern, encrypted P2P networking</td></tr>
 <tr><td><strong>Relay support</strong></td><td>Nodes behind NAT can communicate via relay servers with automatic hole-punching</td></tr>
 </tbody>
@@ -291,7 +291,7 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 <h3 id="groups"><a class="header" href="#groups">Groups</a></h3>
 <p>Availability groups coordinated by a modified Raft consensus protocol. Nodes sharing a group key form a cluster, elect a leader, and replicate commands through a shared log. Custom state machines define application logic that runs deterministically on all group members.</p>
 <h3 id="collections"><a class="header" href="#collections">Collections</a></h3>
-<p>Higher-level replicated data structures built on Groups. Each collection (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>, <code>PriorityQueue</code>) creates its own Raft group with a specialized state machine.</p>
+<p>Higher-level replicated data structures built on Groups. Each collection (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, <code>PriorityQueue</code>) creates its own Raft group with a specialized state machine.</p>
 <h2 id="design-decisions"><a class="header" href="#design-decisions">Design Decisions</a></h2>
 <h3 id="trusted-network-assumption"><a class="header" href="#trusted-network-assumption">Trusted Network Assumption</a></h3>
 <p>Mosaik is <strong>not</strong> Byzantine fault tolerant. All nodes are assumed to be honest and correctly implementing the protocol. This assumption enables:</p>
@@ -489,7 +489,7 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 <li><strong><a href="#building-a-bootstrap-node">Tutorials</a></strong> — Walk through the included examples</li>
 <li><strong><a href="#streams-1">Streams</a></strong> — Producer/consumer configuration, filtering, backpressure</li>
 <li><strong><a href="#groups-1">Groups</a></strong> — Raft consensus and replicated state machines</li>
-<li><strong><a href="#collections-1">Collections</a></strong> — Distributed Map, Vec, Set, Register, Once, PriorityQueue</li>
+<li><strong><a href="#collections-1">Collections</a></strong> — Distributed Map, Vec, Set, Cell, Once, PriorityQueue</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="architecture"><a class="header" href="#architecture">Architecture</a></h1>
@@ -502,7 +502,7 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
     ├── Discovery          (gossip announcements, catalog sync)
     ├── Streams            (typed pub/sub channels)
     └── Groups             (Raft consensus groups)
-            └── Collections  (replicated Map, Vec, Set, Register, Once, PriorityQueue)
+            └── Collections  (replicated Map, Vec, Set, Cell, Once, PriorityQueue)
 </code></pre>
 <p>Each subsystem is created during <code>Network::builder().build()</code> and installed as a protocol handler on the iroh <code>Router</code>. The subsystems are then accessible via accessor methods:</p>
 <pre><code class="language-rust ignore">let network = Network::builder(network_id).build().await?;
@@ -585,7 +585,7 @@ group.when().leader_elected().await;
 // Wait for a collection to reach a specific version
 collection.when().reaches(version).await;</code></pre>
 <h3 id="arcinner-pattern"><a class="header" href="#arcinner-pattern">Arc&lt;Inner&gt; Pattern</a></h3>
-<p>All public handles (<code>Network</code>, <code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Group</code>, <code>Producer</code>, <code>Consumer</code>, <code>Map</code>, <code>Vec</code>, <code>Register</code>, <code>Once</code>, etc.) are cheap to clone. They wrap an <code>Arc&lt;Inner&gt;</code> containing the actual state, making them safe to share across tasks.</p>
+<p>All public handles (<code>Network</code>, <code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Group</code>, <code>Producer</code>, <code>Consumer</code>, <code>Map</code>, <code>Vec</code>, <code>Cell</code>, <code>Once</code>, etc.) are cheap to clone. They wrap an <code>Arc&lt;Inner&gt;</code> containing the actual state, making them safe to share across tasks.</p>
 <h3 id="task-per-connection"><a class="header" href="#task-per-connection">Task-Per-Connection</a></h3>
 <p>Each consumer subscription and each producer-subscriber pair runs in its own tokio task. This avoids head-of-line blocking — a slow consumer doesn’t affect other consumers, and a slow subscriber doesn’t block the producer.</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -3192,7 +3192,7 @@ synchronized across all participating nodes using Raft consensus.</p>
 │                   Collections                                            │
 │                                                                          │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌──────┐ │
-│  │   Map    │ │   Vec    │ │   Set    │ │  DEPQ  │ │ Register │ │ Once │ │
+│  │   Map    │ │   Vec    │ │   Set    │ │  DEPQ  │ │ Cell │ │ Once │ │
 │  │ &lt;K, V&gt;   │ │ &lt;T&gt;      │ │ &lt;T&gt;      │ │&lt;P,K,V&gt; │ │  &lt;T&gt;     │ │ &lt;T&gt;  │ │
 │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └────┬─────┘ └──┬───┘ │
 │       └────────────┴────────────┴─┬─────────┴───────────┴──────────┘     │
@@ -3234,8 +3234,8 @@ using a const-generic boolean:</p>
 <tr><th>Mode</th><th>Type alias</th><th>Can write?</th><th>Leadership priority</th></tr>
 </thead>
 <tbody>
-<tr><td><strong>Writer</strong></td><td><code>MapWriter&lt;K,V&gt;</code>, <code>VecWriter&lt;T&gt;</code>, <code>RegisterWriter&lt;T&gt;</code>, <code>OnceWriter&lt;T&gt;</code> etc.</td><td>Yes</td><td>Normal</td></tr>
-<tr><td><strong>Reader</strong></td><td><code>MapReader&lt;K,V&gt;</code>, <code>VecReader&lt;T&gt;</code>, <code>RegisterReader&lt;T&gt;</code>, <code>OnceReader&lt;T&gt;</code> etc.</td><td>No</td><td>Deprioritized</td></tr>
+<tr><td><strong>Writer</strong></td><td><code>MapWriter&lt;K,V&gt;</code>, <code>VecWriter&lt;T&gt;</code>, <code>CellWriter&lt;T&gt;</code>, <code>OnceWriter&lt;T&gt;</code> etc.</td><td>Yes</td><td>Normal</td></tr>
+<tr><td><strong>Reader</strong></td><td><code>MapReader&lt;K,V&gt;</code>, <code>VecReader&lt;T&gt;</code>, <code>CellReader&lt;T&gt;</code>, <code>OnceReader&lt;T&gt;</code> etc.</td><td>No</td><td>Deprioritized</td></tr>
 </tbody>
 </table>
 </div>
@@ -3257,8 +3257,8 @@ let r = Map::&lt;String, u64&gt;::reader(&amp;network, store_id);</code></pre>
 <tr><td><a href="#map"><code>Map&lt;K, V&gt;</code></a></td><td>Unordered key-value map</td><td><code>im::HashMap</code> (deterministic)</td></tr>
 <tr><td><a href="#vec"><code>Vec&lt;T&gt;</code></a></td><td>Ordered, index-addressable sequence</td><td><code>im::Vector</code></td></tr>
 <tr><td><a href="#set"><code>Set&lt;T&gt;</code></a></td><td>Unordered set of unique values</td><td><code>im::HashSet</code> (deterministic)</td></tr>
-<tr><td><a href="#register"><code>Register&lt;T&gt;</code></a></td><td>Single-value register</td><td><code>Option&lt;T&gt;</code></td></tr>
-<tr><td><a href="#once"><code>Once&lt;T&gt;</code></a></td><td>Write-once register</td><td><code>Option&lt;T&gt;</code></td></tr>
+<tr><td><a href="#cell"><code>Cell&lt;T&gt;</code></a></td><td>Single-value cell</td><td><code>Option&lt;T&gt;</code></td></tr>
+<tr><td><a href="#once"><code>Once&lt;T&gt;</code></a></td><td>Write-once cell</td><td><code>Option&lt;T&gt;</code></td></tr>
 <tr><td><a href="#priorityqueue"><code>PriorityQueue&lt;P, K, V&gt;</code></a></td><td>Double-ended priority queue</td><td><code>im::HashMap</code> + <code>im::OrdMap</code></td></tr>
 </tbody>
 </table>
@@ -3266,7 +3266,7 @@ let r = Map::&lt;String, u64&gt;::reader(&amp;network, store_id);</code></pre>
 <p>Most collections use the <a href="https://docs.rs/im"><code>im</code> crate</a> for their internal
 state, which provides <strong>O(1) structural sharing</strong> — cloning a snapshot of the
 entire collection is essentially free. This is critical for the snapshot-based
-state sync mechanism. <code>Register</code> and <code>Once</code> use a plain <code>Option&lt;T&gt;</code> since they
+state sync mechanism. <code>Cell</code> and <code>Once</code> use a plain <code>Option&lt;T&gt;</code> since they
 hold at most one value.</p>
 <h2 id="trait-requirements"><a class="header" href="#trait-requirements">Trait requirements</a></h2>
 <p>Collections use blanket-implemented marker traits to constrain their type
@@ -3296,7 +3296,7 @@ bounds — you never need to implement them manually.</p>
 <p>This means <code>Map::&lt;String, u64&gt;::writer(&amp;net, id)</code> and
 <code>Map::&lt;u32, u64&gt;::writer(&amp;net, id)</code> will join <strong>different</strong> groups even with
 the same <code>StoreId</code>, because the key type differs. Likewise, a <code>Once&lt;String&gt;</code>
-and a <code>Register&lt;String&gt;</code> with the same <code>StoreId</code> form separate groups because
+and a <code>Cell&lt;String&gt;</code> with the same <code>StoreId</code> form separate groups because
 the prefix differs.</p>
 <h2 id="the-collection-macro-recommended"><a class="header" href="#the-collection-macro-recommended">The <code>collection!</code> macro (recommended)</a></h2>
 <p>The <code>collection!</code> macro is the recommended way to declare named collection
@@ -3319,19 +3319,23 @@ declare::collection!(pub writer Prices = mosaik::collections::Map&lt;String, f64
 
 // With generics:
 declare::collection!(pub Items&lt;T&gt; = mosaik::collections::Vec&lt;T&gt;, "app.items");</code></pre>
-<p>The three modes control which traits are implemented on the generated struct:</p>
+<p>The three modes control the public API of the generated struct:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Mode</th><th>Implements</th></tr>
+<tr><th>Mode</th><th>Public</th><th><code>pub(crate)</code></th></tr>
 </thead>
 <tbody>
-<tr><td><em>(default)</em></td><td><code>CollectionReader</code> <strong>and</strong> <code>CollectionWriter</code></td></tr>
-<tr><td><code>reader</code></td><td><code>CollectionReader</code> only</td></tr>
-<tr><td><code>writer</code></td><td><code>CollectionWriter</code> only</td></tr>
+<tr><td><em>(default)</em></td><td><code>CollectionReader</code> <strong>and</strong> <code>CollectionWriter</code></td><td>—</td></tr>
+<tr><td><code>reader</code></td><td><code>CollectionReader</code></td><td>inherent <code>writer()</code> / <code>online_writer()</code></td></tr>
+<tr><td><code>writer</code></td><td><code>CollectionWriter</code></td><td>inherent <code>reader()</code> / <code>online_reader()</code></td></tr>
 </tbody>
 </table>
 </div>
+<p>In <code>reader</code> or <code>writer</code> mode, the restricted side is still available as
+inherent methods with <code>pub(crate)</code> visibility. This means the crate that
+defines the collection can still instantiate both sides internally, while
+downstream consumers only see the publicly exported trait.</p>
 <h3 id="usage-1"><a class="header" href="#usage-1">Usage</a></h3>
 <p>Call the trait methods on the generated struct to create reader or writer
 instances:</p>
@@ -3422,7 +3426,7 @@ multi-type collections it is a tuple:</p>
 <tr><td><code>Map&lt;K, V&gt;</code></td><td><code>(K, V)</code></td></tr>
 <tr><td><code>Vec&lt;T&gt;</code></td><td><code>T</code></td></tr>
 <tr><td><code>Set&lt;T&gt;</code></td><td><code>T</code></td></tr>
-<tr><td><code>Register&lt;T&gt;</code></td><td><code>T</code></td></tr>
+<tr><td><code>Cell&lt;T&gt;</code></td><td><code>T</code></td></tr>
 <tr><td><code>Once&lt;T&gt;</code></td><td><code>T</code></td></tr>
 <tr><td><code>PriorityQueue&lt;P, K, V&gt;</code></td><td><code>(P, K, V)</code></td></tr>
 </tbody>
@@ -3931,30 +3935,30 @@ set.when().offline().await;</code></pre>
     .derive(type_name::&lt;T&gt;())
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="register"><a class="header" href="#register">Register</a></h1>
-<p><code>Register&lt;T&gt;</code> is a replicated single-value register. It holds at most one
+<h1 id="cell"><a class="header" href="#cell">Cell</a></h1>
+<p><code>Cell&lt;T&gt;</code> is a replicated single-value cell. It holds at most one
 value at a time — writing a new value replaces the previous one entirely. This
 is the distributed equivalent of a <code>tokio::sync::watch</code> channel: all nodes
 observe the latest value.</p>
-<p>Internally the state is simply an <code>Option&lt;T&gt;</code>, making the Register the
+<p>Internally the state is simply an <code>Option&lt;T&gt;</code>, making the Cell the
 simplest collection in the mosaik toolkit.</p>
 <h2 id="construction-3"><a class="header" href="#construction-3">Construction</a></h2>
-<pre><code class="language-rust ignore">use mosaik::collections::{Register, StoreId, SyncConfig};
+<pre><code class="language-rust ignore">use mosaik::collections::{Cell, StoreId, SyncConfig};
 
 // Writer — can read and write
-let reg = Register::&lt;String&gt;::writer(&amp;network, StoreId::from("config"));
+let reg = Cell::&lt;String&gt;::writer(&amp;network, StoreId::from("config"));
 
 // Writer with custom sync config
-let reg = Register::&lt;String&gt;::writer_with_config(&amp;network, store_id, config);
+let reg = Cell::&lt;String&gt;::writer_with_config(&amp;network, store_id, config);
 
 // Reader — read-only, deprioritized for leadership
-let reg = Register::&lt;String&gt;::reader(&amp;network, store_id);
+let reg = Cell::&lt;String&gt;::reader(&amp;network, store_id);
 
 // Reader with custom sync config
-let reg = Register::&lt;String&gt;::reader_with_config(&amp;network, store_id, config);
+let reg = Cell::&lt;String&gt;::reader_with_config(&amp;network, store_id, config);
 
 // Aliases: new() == writer(), new_with_config() == writer_with_config()
-let reg = Register::&lt;String&gt;::new(&amp;network, store_id);</code></pre>
+let reg = Cell::&lt;String&gt;::new(&amp;network, store_id);</code></pre>
 <h2 id="read-operations-3"><a class="header" href="#read-operations-3">Read operations</a></h2>
 <p>Available on both writers and readers. Reads operate on the local committed
 state and never touch the network.</p>
@@ -3966,7 +3970,7 @@ state and never touch the network.</p>
 <tbody>
 <tr><td><code>read() -&gt; Option&lt;T&gt;</code></td><td>O(1)</td><td>Get the current value</td></tr>
 <tr><td><code>get() -&gt; Option&lt;T&gt;</code></td><td>O(1)</td><td>Alias for <code>read()</code></td></tr>
-<tr><td><code>is_empty() -&gt; bool</code></td><td>O(1)</td><td>Whether the register holds a value</td></tr>
+<tr><td><code>is_empty() -&gt; bool</code></td><td>O(1)</td><td>Whether the cell holds a value</td></tr>
 <tr><td><code>version() -&gt; Version</code></td><td>O(1)</td><td>Current committed state version</td></tr>
 <tr><td><code>when() -&gt; &amp;When</code></td><td>O(1)</td><td>Access the state observer</td></tr>
 </tbody>
@@ -3982,7 +3986,7 @@ if reg.is_empty() {
     println!("No configuration set yet");
 }</code></pre>
 <h2 id="write-operations-3"><a class="header" href="#write-operations-3">Write operations</a></h2>
-<p>Only available on <code>RegisterWriter&lt;T&gt;</code>.</p>
+<p>Only available on <code>CellWriter&lt;T&gt;</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -4025,15 +4029,15 @@ assert!(reg.is_empty());
 reg.clear().await?;
 assert!(reg.is_empty());</code></pre>
 <h3 id="compare-and-swap-semantics-1"><a class="header" href="#compare-and-swap-semantics-1">Compare-and-swap semantics</a></h3>
-<p><code>compare_exchange</code> atomically checks the current value of the register and
+<p><code>compare_exchange</code> atomically checks the current value of the cell and
 only applies the write if it matches the <code>current</code> parameter. This is useful
 for optimistic concurrency control — multiple writers can attempt a swap, and
 only the one whose expectation matches the actual state will succeed.</p>
 <ul>
-<li><strong><code>current</code></strong>: The expected current value (<code>None</code> means the register must be
+<li><strong><code>current</code></strong>: The expected current value (<code>None</code> means the cell must be
 empty).</li>
 <li><strong><code>new</code></strong>: The value to write if the expectation holds (<code>None</code> clears the
-register).</li>
+cell).</li>
 </ul>
 <p>If the current value does not match <code>current</code>, the operation is a <strong>no-op</strong> —
 it still commits to the Raft log (incrementing the version) but does not
@@ -4065,15 +4069,15 @@ reg.when().updated().await;
 // React to going offline
 reg.when().offline().await;</code></pre>
 <h2 id="group-identity-4"><a class="header" href="#group-identity-4">Group identity</a></h2>
-<p>The group key for a <code>Register&lt;T&gt;</code> is derived from:</p>
+<p>The group key for a <code>Cell&lt;T&gt;</code> is derived from:</p>
 <pre><code class="language-text">UniqueId::from("mosaik_collections_register")
     .derive(store_id)
     .derive(type_name::&lt;T&gt;())
 </code></pre>
 <p>Two registers with the same <code>StoreId</code> but different value types will be in
 separate consensus groups.</p>
-<h2 id="when-to-use-register"><a class="header" href="#when-to-use-register">When to use Register</a></h2>
-<p>Register is ideal for:</p>
+<h2 id="when-to-use-cell"><a class="header" href="#when-to-use-cell">When to use Cell</a></h2>
+<p>Cell is ideal for:</p>
 <ul>
 <li><strong>Configuration</strong> — a single shared config object replicated across the cluster</li>
 <li><strong>Leader state</strong> — the current leader’s address or identity</li>
@@ -4084,15 +4088,15 @@ separate consensus groups.</p>
 or <a href="#set"><code>Set</code></a> instead.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="once"><a class="header" href="#once">Once</a></h1>
-<p><code>Once&lt;T&gt;</code> is a replicated write-once register. It holds at most one value —
+<p><code>Once&lt;T&gt;</code> is a replicated write-once cell. It holds at most one value —
 once a value has been set, all subsequent writes are silently ignored by the
 state machine. This is the distributed equivalent of a
 <code>tokio::sync::OnceCell</code>.</p>
-<p>Unlike <a href="#register"><code>Register&lt;T&gt;</code></a>, which allows overwriting the stored value,
+<p>Unlike <a href="#cell"><code>Cell&lt;T&gt;</code></a>, which allows overwriting the stored value,
 <code>Once&lt;T&gt;</code> guarantees that the first accepted write is permanent. This makes it
 ideal for one-time initialization patterns where you need exactly one value to
 win across a distributed cluster.</p>
-<p>Internally the state is an <code>Option&lt;T&gt;</code>, identical to <code>Register</code>, but the
+<p>Internally the state is an <code>Option&lt;T&gt;</code>, identical to <code>Cell</code>, but the
 <code>apply</code> logic rejects writes when the value is already <code>Some</code>.</p>
 <h2 id="construction-4"><a class="header" href="#construction-4">Construction</a></h2>
 <pre><code class="language-rust ignore">use mosaik::collections::{Once, StoreId, SyncConfig};
@@ -4122,9 +4126,9 @@ state and never touch the network.</p>
 <tbody>
 <tr><td><code>read() -&gt; Option&lt;T&gt;</code></td><td>O(1)</td><td>Get the current value</td></tr>
 <tr><td><code>get() -&gt; Option&lt;T&gt;</code></td><td>O(1)</td><td>Alias for <code>read()</code></td></tr>
-<tr><td><code>is_empty() -&gt; bool</code></td><td>O(1)</td><td>Whether the register has been set</td></tr>
+<tr><td><code>is_empty() -&gt; bool</code></td><td>O(1)</td><td>Whether the cell has been set</td></tr>
 <tr><td><code>is_none() -&gt; bool</code></td><td>O(1)</td><td>Alias for <code>is_empty()</code></td></tr>
-<tr><td><code>is_some() -&gt; bool</code></td><td>O(1)</td><td>Whether the register holds a value</td></tr>
+<tr><td><code>is_some() -&gt; bool</code></td><td>O(1)</td><td>Whether the cell holds a value</td></tr>
 <tr><td><code>version() -&gt; Version</code></td><td>O(1)</td><td>Current committed state version</td></tr>
 <tr><td><code>when() -&gt; &amp;When</code></td><td>O(1)</td><td>Access the state observer</td></tr>
 </tbody>
@@ -4208,14 +4212,14 @@ once.when().offline().await;</code></pre>
     .derive(store_id)
     .derive(type_name::&lt;T&gt;())
 </code></pre>
-<p>A <code>Once&lt;T&gt;</code> and a <code>Register&lt;T&gt;</code> with the same <code>StoreId</code> and type parameter
+<p>A <code>Once&lt;T&gt;</code> and a <code>Cell&lt;T&gt;</code> with the same <code>StoreId</code> and type parameter
 will be in <strong>separate</strong> consensus groups because the prefix differs
 (<code>"mosaik_collections_once"</code> vs <code>"mosaik_collections_register"</code>).</p>
-<h2 id="once-vs-register"><a class="header" href="#once-vs-register">Once vs Register</a></h2>
+<h2 id="once-vs-cell"><a class="header" href="#once-vs-cell">Once vs Cell</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Behavior</th><th><code>Once&lt;T&gt;</code></th><th><code>Register&lt;T&gt;</code></th></tr>
+<tr><th>Behavior</th><th><code>Once&lt;T&gt;</code></th><th><code>Cell&lt;T&gt;</code></th></tr>
 </thead>
 <tbody>
 <tr><td>Write semantics</td><td>First write wins; subsequent ignored</td><td>Every write replaces the stored value</td></tr>
@@ -4237,7 +4241,7 @@ value that should only be set once</li>
 deployment</li>
 </ul>
 <p>If you need to update the value after setting it, use
-<a href="#register"><code>Register</code></a> instead.</p>
+<a href="#cell"><code>Cell</code></a> instead.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="priorityqueue"><a class="header" href="#priorityqueue">PriorityQueue</a></h1>
 <p><code>PriorityQueue&lt;P, K, V&gt;</code> is a replicated, eventually consistent double-ended
@@ -4402,7 +4406,7 @@ syntaxes work:</p>
 <h3 id="compare-and-swap-semantics-2"><a class="header" href="#compare-and-swap-semantics-2">Compare-and-swap semantics</a></h3>
 <p><code>compare_exchange_value</code> atomically checks the value of an existing entry and
 only applies the mutation if it matches the <code>expected</code> parameter. Unlike
-<code>compare_exchange</code> on <code>Map</code> and <code>Register</code>, this method operates <strong>only on the
+<code>compare_exchange</code> on <code>Map</code> and <code>Cell</code>, this method operates <strong>only on the
 value</strong> — the entry’s priority is always preserved.</p>
 <ul>
 <li><strong><code>key</code></strong>: The key of the entry to operate on (must already exist).</li>
@@ -4484,7 +4488,7 @@ whether the instance has write access.</p>
 <tr><td><code>Map&lt;K, V&gt;</code></td><td><code>MapWriter&lt;K, V&gt;</code></td><td><code>MapReader&lt;K, V&gt;</code></td></tr>
 <tr><td><code>Vec&lt;T&gt;</code></td><td><code>VecWriter&lt;T&gt;</code></td><td><code>VecReader&lt;T&gt;</code></td></tr>
 <tr><td><code>Set&lt;T&gt;</code></td><td><code>SetWriter&lt;T&gt;</code></td><td><code>SetReader&lt;T&gt;</code></td></tr>
-<tr><td><code>Register&lt;T&gt;</code></td><td><code>RegisterWriter&lt;T&gt;</code></td><td><code>RegisterReader&lt;T&gt;</code></td></tr>
+<tr><td><code>Cell&lt;T&gt;</code></td><td><code>CellWriter&lt;T&gt;</code></td><td><code>CellReader&lt;T&gt;</code></td></tr>
 <tr><td><code>Once&lt;T&gt;</code></td><td><code>OnceWriter&lt;T&gt;</code></td><td><code>OnceReader&lt;T&gt;</code></td></tr>
 <tr><td><code>PriorityQueue&lt;P, K, V&gt;</code></td><td><code>PriorityQueueWriter&lt;P, K, V&gt;</code></td><td><code>PriorityQueueReader&lt;P, K, V&gt;</code></td></tr>
 </tbody>
@@ -5128,19 +5132,19 @@ that streams its stored log entries.</p>
 <p>The <code>replay</code> module provides <code>ReplayProvider</code> and <code>ReplaySession</code> types for
 this path.</p>
 <h2 id="collections-and-state-sync"><a class="header" href="#collections-and-state-sync">Collections and state sync</a></h2>
-<p>All built-in collection types (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Register</code>, <code>Once</code>,
+<p>All built-in collection types (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>,
 <code>PriorityQueue</code>) implement <code>SnapshotStateMachine</code>. Their internal state
 machines produce snapshots:</p>
 <pre><code class="language-text">MapStateMachine  ──snapshot()──► MapSnapshot (HashMap entries)
 VecStateMachine  ──snapshot()──► VecSnapshot (indexed entries)
 SetStateMachine  ──snapshot()──► SetSnapshot (set members)
-RegStateMachine  ──snapshot()──► RegisterSnapshot (optional value)
+RegStateMachine  ──snapshot()──► CellSnapshot (optional value)
 OnceStateMachine ──snapshot()──► OnceSnapshot (optional value)
 DepqStateMachine ──snapshot()──► PriorityQueueSnapshot (by_key + by_priority)
 </code></pre>
 <p>The dual-index structure of <code>PriorityQueue</code> is preserved across sync — both
 the <code>by_key</code> and <code>by_priority</code> indices are transmitted and reconstructed.
-<code>Register</code> and <code>Once</code> snapshots are trivial (at most one item), so sync
+<code>Cell</code> and <code>Once</code> snapshots are trivial (at most one item), so sync
 completes in a single batch.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="wire-protocol"><a class="header" href="#wire-protocol">Wire Protocol</a></h1>

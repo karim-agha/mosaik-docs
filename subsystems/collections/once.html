@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-2f1a5c19.js";
+            window.path_to_searchindex_js = "../../searchindex-7c34fce4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-546f1084.js"></script>
+        <script src="../../toc-c7dd45ca.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,15 +181,15 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="once"><a class="header" href="#once">Once</a></h1>
-<p><code>Once&lt;T&gt;</code> is a replicated write-once register. It holds at most one value —
+<p><code>Once&lt;T&gt;</code> is a replicated write-once cell. It holds at most one value —
 once a value has been set, all subsequent writes are silently ignored by the
 state machine. This is the distributed equivalent of a
 <code>tokio::sync::OnceCell</code>.</p>
-<p>Unlike <a href="register.html"><code>Register&lt;T&gt;</code></a>, which allows overwriting the stored value,
+<p>Unlike <a href="cell.html"><code>Cell&lt;T&gt;</code></a>, which allows overwriting the stored value,
 <code>Once&lt;T&gt;</code> guarantees that the first accepted write is permanent. This makes it
 ideal for one-time initialization patterns where you need exactly one value to
 win across a distributed cluster.</p>
-<p>Internally the state is an <code>Option&lt;T&gt;</code>, identical to <code>Register</code>, but the
+<p>Internally the state is an <code>Option&lt;T&gt;</code>, identical to <code>Cell</code>, but the
 <code>apply</code> logic rejects writes when the value is already <code>Some</code>.</p>
 <h2 id="construction"><a class="header" href="#construction">Construction</a></h2>
 <pre><code class="language-rust ignore">use mosaik::collections::{Once, StoreId, SyncConfig};
@@ -219,9 +219,9 @@ state and never touch the network.</p>
 <tbody>
 <tr><td><code>read() -&gt; Option&lt;T&gt;</code></td><td>O(1)</td><td>Get the current value</td></tr>
 <tr><td><code>get() -&gt; Option&lt;T&gt;</code></td><td>O(1)</td><td>Alias for <code>read()</code></td></tr>
-<tr><td><code>is_empty() -&gt; bool</code></td><td>O(1)</td><td>Whether the register has been set</td></tr>
+<tr><td><code>is_empty() -&gt; bool</code></td><td>O(1)</td><td>Whether the cell has been set</td></tr>
 <tr><td><code>is_none() -&gt; bool</code></td><td>O(1)</td><td>Alias for <code>is_empty()</code></td></tr>
-<tr><td><code>is_some() -&gt; bool</code></td><td>O(1)</td><td>Whether the register holds a value</td></tr>
+<tr><td><code>is_some() -&gt; bool</code></td><td>O(1)</td><td>Whether the cell holds a value</td></tr>
 <tr><td><code>version() -&gt; Version</code></td><td>O(1)</td><td>Current committed state version</td></tr>
 <tr><td><code>when() -&gt; &amp;When</code></td><td>O(1)</td><td>Access the state observer</td></tr>
 </tbody>
@@ -305,14 +305,14 @@ once.when().offline().await;</code></pre>
     .derive(store_id)
     .derive(type_name::&lt;T&gt;())
 </code></pre>
-<p>A <code>Once&lt;T&gt;</code> and a <code>Register&lt;T&gt;</code> with the same <code>StoreId</code> and type parameter
+<p>A <code>Once&lt;T&gt;</code> and a <code>Cell&lt;T&gt;</code> with the same <code>StoreId</code> and type parameter
 will be in <strong>separate</strong> consensus groups because the prefix differs
 (<code>"mosaik_collections_once"</code> vs <code>"mosaik_collections_register"</code>).</p>
-<h2 id="once-vs-register"><a class="header" href="#once-vs-register">Once vs Register</a></h2>
+<h2 id="once-vs-cell"><a class="header" href="#once-vs-cell">Once vs Cell</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Behavior</th><th><code>Once&lt;T&gt;</code></th><th><code>Register&lt;T&gt;</code></th></tr>
+<tr><th>Behavior</th><th><code>Once&lt;T&gt;</code></th><th><code>Cell&lt;T&gt;</code></th></tr>
 </thead>
 <tbody>
 <tr><td>Write semantics</td><td>First write wins; subsequent ignored</td><td>Every write replaces the stored value</td></tr>
@@ -334,13 +334,13 @@ value that should only be set once</li>
 deployment</li>
 </ul>
 <p>If you need to update the value after setting it, use
-<a href="register.html"><code>Register</code></a> instead.</p>
+<a href="cell.html"><code>Cell</code></a> instead.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../../subsystems/collections/register.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../../subsystems/collections/cell.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -354,7 +354,7 @@ deployment</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../../subsystems/collections/register.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../../subsystems/collections/cell.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

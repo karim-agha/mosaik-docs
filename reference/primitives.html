@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7c34fce4.js";
+            window.path_to_searchindex_js = "../searchindex-249af3b4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7dd45ca.js"></script>
+        <script src="../toc-1970cca6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -227,9 +227,13 @@ let id = Digest::random();
 // Zero (sentinel value)
 let zero = Digest::zero();</code></pre>
 <h3 id="compile-time-construction"><a class="header" href="#compile-time-construction">Compile-time construction</a></h3>
-<pre><code class="language-rust ignore">use mosaik::unique_id;
+<p>Two equivalent macros are available — <code>id!</code> is the short alias:</p>
+<pre><code class="language-rust ignore">use mosaik::{id, unique_id};
 
-const MY_ID: UniqueId = unique_id!("a1b2c3d4e5f6...");  // 64-char hex literal</code></pre>
+const MY_ID: UniqueId = id!("a1b2c3d4e5f6...");         // 64-char hex literal
+const MY_ID: UniqueId = unique_id!("a1b2c3d4e5f6...");  // identical, longer name</code></pre>
+<p>Both accept either a 64-character hex string (decoded directly) or any other
+string (hashed with blake3).</p>
 <h3 id="display"><a class="header" href="#display">Display</a></h3>
 <ul>
 <li><code>Display</code> — short hex (first 5 bytes): <code>a1b2c3d4e5</code></li>
@@ -242,6 +246,33 @@ const MY_ID: UniqueId = unique_id!("a1b2c3d4e5f6...");  // 64-char hex literal</
 <li><strong>Human-readable</strong> formats (JSON, TOML): hex string</li>
 <li><strong>Binary</strong> formats (postcard): raw 32 bytes</li>
 </ul>
+<hr>
+<h2 id="ticket"><a class="header" href="#ticket"><code>Ticket</code></a></h2>
+<p>An opaque, typed credential that peers attach to their discovery entry for
+authorization purposes.</p>
+<pre><code class="language-rust ignore">use mosaik::{Ticket, UniqueId, id, Bytes};
+
+const MY_AUTH: UniqueId = id!("my-app.auth");
+
+let ticket = Ticket::new(MY_AUTH, Bytes::from("credential-data"));
+let id: UniqueId = ticket.id(); // deterministic, derived from class + data</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>class</code></td><td><code>UniqueId</code></td><td>Identifies the authorization scheme</td></tr>
+<tr><td><code>data</code></td><td><code>Bytes</code></td><td>Opaque payload; format determined by the class</td></tr>
+</tbody>
+</table>
+</div>
+<p>Tickets are stored in a peer’s <code>PeerEntry</code> and propagated via gossip and
+catalog sync. The discovery system never interprets ticket data –
+validation is done in application code (e.g. inside a producer’s
+<code>accept_if</code> predicate).</p>
+<p>See <a href="../subsystems/discovery/tickets.html">Discovery &gt; Auth Tickets</a> for
+a full walkthrough.</p>
 <hr>
 <h2 id="peerid"><a class="header" href="#peerid"><code>PeerId</code></a></h2>
 <pre><code class="language-rust ignore">type PeerId = iroh::EndpointId;</code></pre>

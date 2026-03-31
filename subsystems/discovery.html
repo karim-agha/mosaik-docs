@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7c34fce4.js";
+            window.path_to_searchindex_js = "../searchindex-249af3b4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7dd45ca.js"></script>
+        <script src="../toc-1970cca6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -272,6 +272,22 @@ discovery.add_tags(["role-a", "role-b"]);
 // Remove tags
 discovery.remove_tags("old-role");</code></pre>
 <p>Changing tags triggers an immediate re-announcement to the network.</p>
+<h3 id="managing-tickets"><a class="header" href="#managing-tickets">Managing Tickets</a></h3>
+<p>Tickets are opaque, typed credentials attached to a peer’s discovery entry. They are commonly used to authenticate consumers in stream subscriptions.</p>
+<pre><code class="language-rust ignore">use mosaik::{Ticket, UniqueId, unique_id, Bytes};
+
+const MY_AUTH: UniqueId = unique_id!("my-app.auth");
+
+// Add a ticket
+let ticket = Ticket::new(MY_AUTH, Bytes::from("credential-data"));
+discovery.add_ticket(ticket.clone());
+
+// Remove a specific ticket
+discovery.remove_ticket(ticket.id());
+
+// Remove all tickets of a given class
+discovery.remove_tickets_of(MY_AUTH);</code></pre>
+<p>Tickets propagate through gossip and catalog sync like tags and streams. See the <a href="./discovery/tickets.html">Auth Tickets</a> sub-chapter for a full walkthrough including JWT-based authentication.</p>
 <h3 id="local-entry"><a class="header" href="#local-entry">Local Entry</a></h3>
 <pre><code class="language-rust ignore">// Get this node's signed entry (as others see it)
 let my_entry = discovery.me();
@@ -316,6 +332,7 @@ while let Ok(event) = events.recv().await {
 <li>Network ID</li>
 <li>Tags</li>
 <li>Available streams and groups</li>
+<li>Auth tickets</li>
 <li>Version (start + update timestamps)</li>
 </ul>
 <p>The jitter on the announce interval prevents all nodes from announcing simultaneously. When a node changes its metadata (adds a tag, creates a stream, joins a group), it re-announces immediately.</p>

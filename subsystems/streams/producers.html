@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-7c34fce4.js";
+            window.path_to_searchindex_js = "../../searchindex-249af3b4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-c7dd45ca.js"></script>
+        <script src="../../toc-1970cca6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -230,6 +230,26 @@ producer.send(datum).await?;</code></pre>
     Err(Error::Closed(d)) =&gt; { /* producer closed */ }
 }</code></pre>
 <p>All error variants return the unsent datum so you can retry or inspect it.</p>
+<h2 id="ticket-based-authentication"><a class="header" href="#ticket-based-authentication">Ticket-Based Authentication</a></h2>
+<p>Instead of (or in addition to) filtering by tags, you can require
+consumers to carry a valid auth ticket. Tickets are opaque credentials
+that consumers attach to their discovery entry and producers validate
+inside <code>accept_if</code>:</p>
+<pre><code class="language-rust ignore">use mosaik::{UniqueId, unique_id};
+
+const JWT_TICKET: UniqueId = unique_id!("my-app.jwt");
+
+let producer = network.streams()
+    .producer::&lt;MyDatum&gt;()
+    .accept_if(move |peer| {
+        peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
+            // Validate the JWT signature, expiration, subject, etc.
+            validate_jwt(jwt_bytes, peer.id())
+        })
+    })
+    .build()?;</code></pre>
+<p>See <a href="../discovery/tickets.html">Discovery &gt; Auth Tickets</a> for the full
+pattern, including how consumers create and attach tickets.</p>
 <h2 id="online-conditions"><a class="header" href="#online-conditions">Online Conditions</a></h2>
 <p>By default, a producer is online when it has at least one connected consumer. Customize this:</p>
 <pre><code class="language-rust ignore">// Online when at least 3 validators are subscribed

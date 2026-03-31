@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-7c34fce4.js";
+            window.path_to_searchindex_js = "searchindex-249af3b4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c7dd45ca.js"></script>
+        <script src="toc-1970cca6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1593,6 +1593,22 @@ discovery.add_tags(["role-a", "role-b"]);
 // Remove tags
 discovery.remove_tags("old-role");</code></pre>
 <p>Changing tags triggers an immediate re-announcement to the network.</p>
+<h3 id="managing-tickets"><a class="header" href="#managing-tickets">Managing Tickets</a></h3>
+<p>Tickets are opaque, typed credentials attached to a peer’s discovery entry. They are commonly used to authenticate consumers in stream subscriptions.</p>
+<pre><code class="language-rust ignore">use mosaik::{Ticket, UniqueId, unique_id, Bytes};
+
+const MY_AUTH: UniqueId = unique_id!("my-app.auth");
+
+// Add a ticket
+let ticket = Ticket::new(MY_AUTH, Bytes::from("credential-data"));
+discovery.add_ticket(ticket.clone());
+
+// Remove a specific ticket
+discovery.remove_ticket(ticket.id());
+
+// Remove all tickets of a given class
+discovery.remove_tickets_of(MY_AUTH);</code></pre>
+<p>Tickets propagate through gossip and catalog sync like tags and streams. See the <a href="#auth-tickets">Auth Tickets</a> sub-chapter for a full walkthrough including JWT-based authentication.</p>
 <h3 id="local-entry"><a class="header" href="#local-entry">Local Entry</a></h3>
 <pre><code class="language-rust ignore">// Get this node's signed entry (as others see it)
 let my_entry = discovery.me();
@@ -1637,6 +1653,7 @@ while let Ok(event) = events.recv().await {
 <li>Network ID</li>
 <li>Tags</li>
 <li>Available streams and groups</li>
+<li>Auth tickets</li>
 <li>Version (start + update timestamps)</li>
 </ul>
 <p>The jitter on the announce interval prevents all nodes from announcing simultaneously. When a node changes its metadata (adds a tag, creates a stream, joins a group), it re-announces immediately.</p>
@@ -1767,6 +1784,7 @@ loop {
     pub tags: BTreeSet&lt;Tag&gt;,
     pub streams: BTreeSet&lt;StreamId&gt;,
     pub groups: BTreeSet&lt;GroupId&gt;,
+    pub tickets: BTreeMap&lt;UniqueId, Ticket&gt;,
     pub version: PeerEntryVersion,
 }</code></pre>
 <h3 id="fields"><a class="header" href="#fields">Fields</a></h3>
@@ -1782,6 +1800,7 @@ loop {
 <tr><td><code>tags</code></td><td><code>BTreeSet&lt;Tag&gt;</code></td><td>Capability labels (e.g., <code>"matcher"</code>, <code>"validator"</code>)</td></tr>
 <tr><td><code>streams</code></td><td><code>BTreeSet&lt;StreamId&gt;</code></td><td>Streams this peer produces</td></tr>
 <tr><td><code>groups</code></td><td><code>BTreeSet&lt;GroupId&gt;</code></td><td>Groups this peer belongs to</td></tr>
+<tr><td><code>tickets</code></td><td><code>BTreeMap&lt;UniqueId,Ticket&gt;</code></td><td>Auth tickets keyed by ticket id (see <a href="#auth-tickets">Auth Tickets</a>)</td></tr>
 <tr><td><code>version</code></td><td><code>PeerEntryVersion</code></td><td>Two-part version for staleness detection</td></tr>
 </tbody>
 </table>
@@ -1821,6 +1840,158 @@ let consumer = network.streams().consumer::&lt;Order&gt;()
 <li><strong>Thread safety</strong> — immutable snapshots can be shared freely</li>
 </ul>
 <p>Updates create new snapshots atomically via <code>tokio::sync::watch::Sender&lt;Catalog&gt;</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="auth-tickets"><a class="header" href="#auth-tickets">Auth Tickets</a></h1>
+<p>Tickets are opaque, typed credentials that peers attach to their discovery
+entry. Producers (and other subsystems) can inspect a peer’s tickets to
+make authorization decisions – for example, only accepting consumers that
+carry a valid JWT.</p>
+<h2 id="overview-2"><a class="header" href="#overview-2">Overview</a></h2>
+<p>A <code>Ticket</code> has two fields:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>class</code></td><td><code>UniqueId</code></td><td>Identifies the authorization scheme (e.g. <code>"my-app.jwt"</code>)</td></tr>
+<tr><td><code>data</code></td><td><code>Bytes</code></td><td>Opaque payload whose format is determined by the <code>class</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>The discovery system does <strong>not</strong> interpret ticket data. It simply
+stores, signs, and propagates tickets alongside the rest of the peer
+entry. Validation logic lives entirely in application code – typically
+inside a producer’s <code>accept_if</code> predicate.</p>
+<h3 id="ticket-identity"><a class="header" href="#ticket-identity">Ticket identity</a></h3>
+<p>Each ticket has a deterministic <code>id()</code> derived from its <code>class</code> and
+<code>data</code>. This ID is used as the key in the peer entry’s ticket map, so
+adding the same ticket twice is idempotent.</p>
+<h2 id="creating-and-attaching-tickets"><a class="header" href="#creating-and-attaching-tickets">Creating and attaching tickets</a></h2>
+<p>Construct a <code>Ticket</code> and add it through the <code>Discovery</code> handle:</p>
+<pre><code class="language-rust ignore">use mosaik::{Ticket, UniqueId, id, Bytes};
+
+const MY_TICKET_CLASS: UniqueId = id!("my-app.auth");
+
+let ticket = Ticket::new(
+    MY_TICKET_CLASS,
+    Bytes::from("some-credential-data"),
+);
+
+// Attach to this node's discovery entry
+network.discovery().add_ticket(ticket);</code></pre>
+<p>The ticket is immediately included in the next gossip announcement and
+catalog sync, so remote peers see it within one announce cycle.</p>
+<h2 id="removing-tickets"><a class="header" href="#removing-tickets">Removing tickets</a></h2>
+<pre><code class="language-rust ignore">// Remove a specific ticket by its id
+let ticket_id = ticket.id();
+network.discovery().remove_ticket(ticket_id);
+
+// Remove all tickets of a given class
+network.discovery().remove_tickets_of(MY_TICKET_CLASS);</code></pre>
+<h2 id="querying-tickets-on-a-peer-entry"><a class="header" href="#querying-tickets-on-a-peer-entry">Querying tickets on a peer entry</a></h2>
+<p>When you receive a <code>PeerEntry</code> (for example, inside an <code>accept_if</code>
+closure), three methods are available:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Returns</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tickets()</code></td><td><code>&amp;BTreeMap&lt;UniqueId, Ticket&gt;</code> – all tickets</td></tr>
+<tr><td><code>tickets_of(class)</code></td><td>Iterator over tickets matching the class</td></tr>
+<tr><td><code>valid_tickets(class, validator)</code></td><td>Iterator filtered by a <code>Fn(&amp;[u8]) -&gt; bool</code></td></tr>
+<tr><td><code>has_valid_ticket(class, validator)</code></td><td><code>true</code> if at least one ticket passes the check</td></tr>
+</tbody>
+</table>
+</div>
+<p>The <code>validator</code> closure receives the raw <code>data</code> bytes of each ticket and
+returns <code>true</code> if the ticket is considered valid.</p>
+<h2 id="example-jwt-authenticated-streams"><a class="header" href="#example-jwt-authenticated-streams">Example: JWT-authenticated streams</a></h2>
+<p>A common pattern is to issue JWTs to authorized consumers. The producer
+then validates those JWTs inside its <code>accept_if</code> predicate.</p>
+<h3 id="1-define-a-ticket-class"><a class="header" href="#1-define-a-ticket-class">1. Define a ticket class</a></h3>
+<p>Both producer and consumer agree on a <code>UniqueId</code> for the ticket class:</p>
+<pre><code class="language-rust ignore">use mosaik::{UniqueId, id};
+
+const JWT_TICKET: UniqueId = id!("my-app.jwt");</code></pre>
+<h3 id="2-consumer-attach-a-jwt-ticket"><a class="header" href="#2-consumer-attach-a-jwt-ticket">2. Consumer: attach a JWT ticket</a></h3>
+<p>The consumer creates a JWT, wraps it in a <code>Ticket</code>, and publishes it
+via discovery:</p>
+<pre><code class="language-rust ignore">use mosaik::{Ticket, Bytes};
+
+// (JWT creation uses any standard JWT library)
+let jwt_string: String = create_signed_jwt(&amp;consumer_peer_id);
+
+let ticket = Ticket::new(JWT_TICKET, Bytes::from(jwt_string));
+network.discovery().add_ticket(ticket);</code></pre>
+<p>Because tickets propagate through gossip, the producer will see them
+when the consumer’s updated <code>PeerEntry</code> arrives.</p>
+<h3 id="3-producer-validate-tickets-in-accept_if"><a class="header" href="#3-producer-validate-tickets-in-accept_if">3. Producer: validate tickets in <code>accept_if</code></a></h3>
+<p>The producer uses <code>has_valid_ticket</code> to check incoming consumers:</p>
+<pre><code class="language-rust ignore">use mosaik::streams;
+
+let producer = network.streams()
+    .producer::&lt;MyDatum&gt;()
+    .accept_if(move |peer| {
+        peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
+            let jwt_str = std::str::from_utf8(jwt_bytes).unwrap_or("");
+            // Verify signature, expiration, issuer, subject...
+            validate_jwt(jwt_str, peer.id())
+        })
+    })
+    .build()?;</code></pre>
+<p>The predicate runs each time a consumer attempts to subscribe. If the
+consumer has no ticket of the right class, or if every ticket fails the
+validator, <code>has_valid_ticket</code> returns <code>false</code> and the subscription is
+rejected with a <code>NotAllowed</code> close code.</p>
+<h3 id="4-what-happens-at-runtime"><a class="header" href="#4-what-happens-at-runtime">4. What happens at runtime</a></h3>
+<pre><code>Consumer                        Discovery gossip                    Producer
+────────                        ───────────────                     ────────
+add_ticket(jwt)  ──────────►  PeerEntry { tickets: [jwt] }
+                                        │
+                                        ▼
+                               gossip / catalog sync
+                                        │
+                                        ▼
+                                                              accept_if(peer)
+                                                              └─ has_valid_ticket(...)
+                                                                 └─ validate jwt_bytes
+                                                                    ├─ valid → accept
+                                                                    └─ invalid → reject
+</code></pre>
+<p>Consumers that lack a valid ticket are never connected. Consumers whose
+tickets expire can be rejected on subsequent reconnection attempts (the
+predicate is re-evaluated each time).</p>
+<h2 id="id-vs-unique_id"><a class="header" href="#id-vs-unique_id"><code>id!</code> vs <code>unique_id!</code></a></h2>
+<p>The <code>id!</code> macro is a short alias for <code>unique_id!</code> — both produce a compile-time
+<code>UniqueId</code> from a string literal. Use whichever reads more naturally; <code>id!</code> is
+preferred in the examples throughout this chapter.</p>
+<h2 id="design-notes"><a class="header" href="#design-notes">Design notes</a></h2>
+<ul>
+<li>
+<p><strong>Tickets are public.</strong> They are included in the signed <code>PeerEntry</code>
+and propagated to all peers on the network. Do not put secrets in the
+<code>data</code> field – use signed tokens (JWTs, Macaroons) or public-key
+proofs instead.</p>
+</li>
+<li>
+<p><strong>Tickets are not encrypted.</strong> If confidentiality of the credential
+matters, encrypt the payload before wrapping it in a <code>Ticket</code> and
+decrypt inside the validator.</p>
+</li>
+<li>
+<p><strong>Ticket validation is synchronous.</strong> The <code>accept_if</code> closure and
+the <code>validator</code> function passed to <code>has_valid_ticket</code> are plain
+<code>Fn</code> – they cannot perform async I/O. Keep validation fast and
+self-contained (e.g. signature checks, expiration comparisons).</p>
+</li>
+<li>
+<p><strong>Multiple ticket classes.</strong> A single peer can carry tickets of
+different classes simultaneously. Producers can check for any
+combination of classes in their <code>accept_if</code> predicate.</p>
+</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="events-1"><a class="header" href="#events-1">Events</a></h1>
 <p>The Discovery subsystem emits events when the peer catalog changes. You can subscribe to these events for reactive programming.</p>
@@ -1895,7 +2066,7 @@ while let Ok(event) = events.recv().await {
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="streams-1"><a class="header" href="#streams-1">Streams</a></h1>
 <p>Streams are the primary dataflow primitive in mosaik. They represent typed, asynchronous data channels that connect <strong>producers</strong> and <strong>consumers</strong> across a network.</p>
-<h2 id="overview-2"><a class="header" href="#overview-2">Overview</a></h2>
+<h2 id="overview-3"><a class="header" href="#overview-3">Overview</a></h2>
 <pre><code>Producer Node                       Consumer Node
 ┌─────────────────┐                ┌─────────────────┐
 │  Producer&lt;D&gt;    │────QUIC────────│  Consumer&lt;D&gt;     │
@@ -2234,6 +2405,26 @@ producer.send(datum).await?;</code></pre>
     Err(Error::Closed(d)) =&gt; { /* producer closed */ }
 }</code></pre>
 <p>All error variants return the unsent datum so you can retry or inspect it.</p>
+<h2 id="ticket-based-authentication"><a class="header" href="#ticket-based-authentication">Ticket-Based Authentication</a></h2>
+<p>Instead of (or in addition to) filtering by tags, you can require
+consumers to carry a valid auth ticket. Tickets are opaque credentials
+that consumers attach to their discovery entry and producers validate
+inside <code>accept_if</code>:</p>
+<pre><code class="language-rust ignore">use mosaik::{UniqueId, unique_id};
+
+const JWT_TICKET: UniqueId = unique_id!("my-app.jwt");
+
+let producer = network.streams()
+    .producer::&lt;MyDatum&gt;()
+    .accept_if(move |peer| {
+        peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
+            // Validate the JWT signature, expiration, subject, etc.
+            validate_jwt(jwt_bytes, peer.id())
+        })
+    })
+    .build()?;</code></pre>
+<p>See <a href="#auth-tickets">Discovery &gt; Auth Tickets</a> for the full
+pattern, including how consumers create and attach tickets.</p>
 <h2 id="online-conditions"><a class="header" href="#online-conditions">Online Conditions</a></h2>
 <p>By default, a producer is online when it has at least one connected consumer. Customize this:</p>
 <pre><code class="language-rust ignore">// Online when at least 3 validators are subscribed
@@ -2574,7 +2765,7 @@ println!("{}", stats);
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="groups-1"><a class="header" href="#groups-1">Groups</a></h1>
 <p>Availability Groups are clusters of trusted nodes on the same mosaik network that coordinate with each other for load balancing and failover. Members of a group share a secret key, maintain a consistent replicated state through a modified Raft consensus protocol, and stay connected via an all-to-all mesh of persistent <strong>bonds</strong>.</p>
-<h2 id="overview-3"><a class="header" href="#overview-3">Overview</a></h2>
+<h2 id="overview-4"><a class="header" href="#overview-4">Overview</a></h2>
 <pre><code>          ┌──────────┐
           │  Node A   │
           │ (Leader)  │
@@ -5877,9 +6068,13 @@ let id = Digest::random();
 // Zero (sentinel value)
 let zero = Digest::zero();</code></pre>
 <h3 id="compile-time-construction"><a class="header" href="#compile-time-construction">Compile-time construction</a></h3>
-<pre><code class="language-rust ignore">use mosaik::unique_id;
+<p>Two equivalent macros are available — <code>id!</code> is the short alias:</p>
+<pre><code class="language-rust ignore">use mosaik::{id, unique_id};
 
-const MY_ID: UniqueId = unique_id!("a1b2c3d4e5f6...");  // 64-char hex literal</code></pre>
+const MY_ID: UniqueId = id!("a1b2c3d4e5f6...");         // 64-char hex literal
+const MY_ID: UniqueId = unique_id!("a1b2c3d4e5f6...");  // identical, longer name</code></pre>
+<p>Both accept either a 64-character hex string (decoded directly) or any other
+string (hashed with blake3).</p>
 <h3 id="display"><a class="header" href="#display">Display</a></h3>
 <ul>
 <li><code>Display</code> — short hex (first 5 bytes): <code>a1b2c3d4e5</code></li>
@@ -5892,6 +6087,33 @@ const MY_ID: UniqueId = unique_id!("a1b2c3d4e5f6...");  // 64-char hex literal</
 <li><strong>Human-readable</strong> formats (JSON, TOML): hex string</li>
 <li><strong>Binary</strong> formats (postcard): raw 32 bytes</li>
 </ul>
+<hr>
+<h2 id="ticket"><a class="header" href="#ticket"><code>Ticket</code></a></h2>
+<p>An opaque, typed credential that peers attach to their discovery entry for
+authorization purposes.</p>
+<pre><code class="language-rust ignore">use mosaik::{Ticket, UniqueId, id, Bytes};
+
+const MY_AUTH: UniqueId = id!("my-app.auth");
+
+let ticket = Ticket::new(MY_AUTH, Bytes::from("credential-data"));
+let id: UniqueId = ticket.id(); // deterministic, derived from class + data</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>class</code></td><td><code>UniqueId</code></td><td>Identifies the authorization scheme</td></tr>
+<tr><td><code>data</code></td><td><code>Bytes</code></td><td>Opaque payload; format determined by the class</td></tr>
+</tbody>
+</table>
+</div>
+<p>Tickets are stored in a peer’s <code>PeerEntry</code> and propagated via gossip and
+catalog sync. The discovery system never interprets ticket data –
+validation is done in application code (e.g. inside a producer’s
+<code>accept_if</code> predicate).</p>
+<p>See <a href="#auth-tickets">Discovery &gt; Auth Tickets</a> for
+a full walkthrough.</p>
 <hr>
 <h2 id="peerid"><a class="header" href="#peerid"><code>PeerId</code></a></h2>
 <pre><code class="language-rust ignore">type PeerId = iroh::EndpointId;</code></pre>

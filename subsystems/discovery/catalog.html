@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-7c34fce4.js";
+            window.path_to_searchindex_js = "../../searchindex-249af3b4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-c7dd45ca.js"></script>
+        <script src="../../toc-1970cca6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -217,6 +217,7 @@ loop {
     pub tags: BTreeSet&lt;Tag&gt;,
     pub streams: BTreeSet&lt;StreamId&gt;,
     pub groups: BTreeSet&lt;GroupId&gt;,
+    pub tickets: BTreeMap&lt;UniqueId, Ticket&gt;,
     pub version: PeerEntryVersion,
 }</code></pre>
 <h3 id="fields"><a class="header" href="#fields">Fields</a></h3>
@@ -232,6 +233,7 @@ loop {
 <tr><td><code>tags</code></td><td><code>BTreeSet&lt;Tag&gt;</code></td><td>Capability labels (e.g., <code>"matcher"</code>, <code>"validator"</code>)</td></tr>
 <tr><td><code>streams</code></td><td><code>BTreeSet&lt;StreamId&gt;</code></td><td>Streams this peer produces</td></tr>
 <tr><td><code>groups</code></td><td><code>BTreeSet&lt;GroupId&gt;</code></td><td>Groups this peer belongs to</td></tr>
+<tr><td><code>tickets</code></td><td><code>BTreeMap&lt;UniqueId,Ticket&gt;</code></td><td>Auth tickets keyed by ticket id (see <a href="./tickets.html">Auth Tickets</a>)</td></tr>
 <tr><td><code>version</code></td><td><code>PeerEntryVersion</code></td><td>Two-part version for staleness detection</td></tr>
 </tbody>
 </table>
@@ -280,7 +282,7 @@ let consumer = network.streams().consumer::&lt;Order&gt;()
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../../subsystems/discovery/events.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../../subsystems/discovery/tickets.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -294,7 +296,7 @@ let consumer = network.streams().consumer::&lt;Order&gt;()
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../../subsystems/discovery/events.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../../subsystems/discovery/tickets.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

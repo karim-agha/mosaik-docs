@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-326c2752.js";
+            window.path_to_searchindex_js = "../searchindex-2f41afc2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-1970cca6.js"></script>
@@ -261,7 +261,7 @@ while let Some(update) = consumer.next().await {
 </thead>
 <tbody>
 <tr><td><code>10_404</code></td><td><code>StreamNotFound</code></td><td>The requested stream does not exist on the producer</td></tr>
-<tr><td><code>10_403</code></td><td><code>NotAllowed</code></td><td>The consumer is rejected by the producer’s <code>accept_if</code> predicate</td></tr>
+<tr><td><code>10_403</code></td><td><code>NotAllowed</code></td><td>The consumer is rejected by the producer’s <code>require</code> predicate</td></tr>
 <tr><td><code>10_509</code></td><td><code>NoCapacity</code></td><td>The producer has reached <code>max_consumers</code></td></tr>
 <tr><td><code>10_413</code></td><td><code>TooSlow</code></td><td>The consumer was disconnected for lagging behind</td></tr>
 </tbody>
@@ -322,9 +322,9 @@ declare::stream!(pub consumer PriceFeed = PriceUpdate, "oracle.price");</code></
 <p>Configuration keys can be added after the stream ID. The macro routes
 each key to the correct builder (producer or consumer) automatically:</p>
 <pre><code class="language-rust ignore">declare::stream!(pub PriceFeed = PriceUpdate, "oracle.price",
-    accept_if: |peer| peer.tags().contains(&amp;tag!("trusted")),
+    producer require: |peer| peer.tags().contains(&amp;tag!("trusted")),
     producer online_when: |c| c.minimum_of(2),
-    subscribe_if: |peer| true,
+    consumer require: |peer| true,
 );</code></pre>
 <h4 id="producer-side-keys-inferred-automatically"><a class="header" href="#producer-side-keys-inferred-automatically">Producer-side keys (inferred automatically)</a></h4>
 <div class="table-wrapper">
@@ -333,7 +333,7 @@ each key to the correct builder (producer or consumer) automatically:</p>
 <tr><th>Key</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>accept_if</code></td><td>Predicate for accepting consumer connections</td></tr>
+<tr><td></td><td></td></tr>
 <tr><td><code>max_consumers</code></td><td>Maximum number of concurrent consumers</td></tr>
 <tr><td><code>buffer_size</code></td><td>Internal channel buffer size</td></tr>
 <tr><td><code>disconnect_lagging</code></td><td>Disconnect slow consumers after duration</td></tr>
@@ -347,7 +347,6 @@ each key to the correct builder (producer or consumer) automatically:</p>
 <tr><th>Key</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>subscribe_if</code></td><td>Predicate for selecting eligible producers</td></tr>
 <tr><td><code>criteria</code></td><td>Data range criteria</td></tr>
 <tr><td><code>backoff</code></td><td>Retry backoff policy</td></tr>
 </tbody>
@@ -360,6 +359,7 @@ each key to the correct builder (producer or consumer) automatically:</p>
 <tr><th>Key</th><th>Description</th></tr>
 </thead>
 <tbody>
+<tr><td><code>require</code></td><td>Conditions for accepting a consumer or producer connection</td></tr>
 <tr><td><code>online_when</code></td><td>Conditions for the stream to be considered online</td></tr>
 </tbody>
 </table>

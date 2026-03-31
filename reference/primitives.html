@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-326c2752.js";
+            window.path_to_searchindex_js = "../searchindex-2f41afc2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-1970cca6.js"></script>
@@ -270,7 +270,7 @@ let id: UniqueId = ticket.id(); // deterministic, derived from class + data</cod
 <p>Tickets are stored in a peer’s <code>PeerEntry</code> and propagated via gossip and
 catalog sync. The discovery system never interprets ticket data –
 validation is done in application code (e.g. inside a producer’s
-<code>accept_if</code> predicate).</p>
+<code>require</code> predicate).</p>
 <p>See <a href="../subsystems/discovery/tickets.html">Discovery &gt; Auth Tickets</a> for
 a full walkthrough.</p>
 <hr>
@@ -367,9 +367,9 @@ stream!(pub consumer PriceFeed = PriceUpdate, "oracle.price");
 
 // With configuration
 stream!(pub PriceFeed = PriceUpdate, "oracle.price",
-    accept_if: |peer| peer.tags().contains(&amp;tag!("trusted")),
+    producer require: |peer| peer.tags().contains(&amp;tag!("trusted")),
     producer online_when: |c| c.minimum_of(2),
-    subscribe_if: |peer| true,
+    consumer require: |peer| true,
 );</code></pre>
 <p>The stream ID string is <strong>intent-addressed</strong> — hashed with blake3 at compile
 time (or decoded directly if it is exactly 64 hex characters). When omitted,

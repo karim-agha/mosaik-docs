@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-326c2752.js";
+            window.path_to_searchindex_js = "../../searchindex-2f41afc2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-1970cca6.js"></script>
@@ -188,7 +188,7 @@
 <p><strong>With builder (advanced configuration):</strong></p>
 <pre><code class="language-rust ignore">let mut consumer = network.streams()
     .consumer::&lt;MyDatum&gt;()
-    .subscribe_if(|peer| peer.tags().contains(&amp;"primary".into()))
+    .require(|peer| peer.tags().contains(&amp;"primary".into()))
     .with_criteria(Criteria::default())
     .with_stream_id("custom-id")
     .with_backoff(ExponentialBackoffBuilder::default()
@@ -202,7 +202,7 @@
 <tr><th>Method</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>subscribe_if(predicate)</code></td><td>Accept all</td><td>Filter which producers to subscribe to</td></tr>
+<tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Peer eligibility predicate (AND-composed)</td></tr>
 <tr><td><code>with_criteria(criteria)</code></td><td><code>Criteria::default()</code></td><td>Data selection criteria sent to producers</td></tr>
 <tr><td><code>with_stream_id(id)</code></td><td><code>D::derived_stream_id()</code></td><td>Custom stream identity</td></tr>
 <tr><td><code>with_backoff(policy)</code></td><td>From <code>Streams</code> config</td><td>Backoff policy for reconnection retries</td></tr>
@@ -238,11 +238,11 @@ let filtered = consumer
     .collect::&lt;Vec&lt;_&gt;&gt;()
     .await;</code></pre>
 <h2 id="producer-selection"><a class="header" href="#producer-selection">Producer Selection</a></h2>
-<p>By default, a consumer subscribes to <strong>every</strong> discovered producer of the same stream ID. Use <code>subscribe_if</code> to be selective:</p>
+<p>By default, a consumer subscribes to <strong>every</strong> discovered producer of the same stream ID. Use <code>require</code> to be selective:</p>
 <pre><code class="language-rust ignore">// Only subscribe to producers tagged as "primary"
 let consumer = network.streams()
     .consumer::&lt;PriceUpdate&gt;()
-    .subscribe_if(|peer| peer.tags().contains(&amp;"primary".into()))
+    .require(|peer| peer.tags().contains(&amp;"primary".into()))
     .build();</code></pre>
 <p>The predicate receives a <code>&amp;PeerEntry</code> and is evaluated each time a new producer is discovered.</p>
 <h2 id="criteria"><a class="header" href="#criteria">Criteria</a></h2>

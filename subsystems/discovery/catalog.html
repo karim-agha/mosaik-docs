@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-326c2752.js";
+            window.path_to_searchindex_js = "../../searchindex-2f41afc2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-1970cca6.js"></script>
@@ -258,12 +258,12 @@ let peer_id = my_entry.peer_id();</code></pre>
 <p>The catalog is commonly used to filter peers in Streams:</p>
 <pre><code class="language-rust ignore">// Producer: only accept consumers with specific tags
 let producer = network.streams().producer::&lt;Order&gt;()
-    .accept_if(|peer| peer.tags.contains(&amp;"authorized".into()))
+    .require(|peer| peer.tags.contains(&amp;"authorized".into()))
     .build()?;
 
 // Consumer: only subscribe to specific producers
 let consumer = network.streams().consumer::&lt;Order&gt;()
-    .subscribe_if(|peer| peer.tags.contains(&amp;"primary".into()))
+    .require(|peer| peer.tags.contains(&amp;"primary".into()))
     .build();</code></pre>
 <h2 id="internal-structure"><a class="header" href="#internal-structure">Internal Structure</a></h2>
 <p>The catalog uses <code>im::OrdMap</code> — an immutable, persistent ordered map — for its internal storage. This provides:</p>

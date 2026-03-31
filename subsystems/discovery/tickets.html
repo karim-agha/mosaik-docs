@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-326c2752.js";
+            window.path_to_searchindex_js = "../../searchindex-2f41afc2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-1970cca6.js"></script>
@@ -201,7 +201,7 @@ carry a valid JWT.</p>
 <p>The discovery system does <strong>not</strong> interpret ticket data. It simply
 stores, signs, and propagates tickets alongside the rest of the peer
 entry. Validation logic lives entirely in application code – typically
-inside a producer’s <code>accept_if</code> predicate.</p>
+inside a producer’s <code>require</code> predicate.</p>
 <h3 id="ticket-identity"><a class="header" href="#ticket-identity">Ticket identity</a></h3>
 <p>Each ticket has a deterministic <code>id()</code> derived from its <code>class</code> and
 <code>data</code>. This ID is used as the key in the peer entry’s ticket map, so
@@ -229,8 +229,8 @@ network.discovery().remove_ticket(ticket_id);
 // Remove all tickets of a given class
 network.discovery().remove_tickets_of(MY_TICKET_CLASS);</code></pre>
 <h2 id="querying-tickets-on-a-peer-entry"><a class="header" href="#querying-tickets-on-a-peer-entry">Querying tickets on a peer entry</a></h2>
-<p>When you receive a <code>PeerEntry</code> (for example, inside an <code>accept_if</code>
-closure), three methods are available:</p>
+<p>When you receive a <code>PeerEntry</code> (for example, inside an <code>require</code>
+closure), four methods are available:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -248,7 +248,7 @@ closure), three methods are available:</p>
 returns <code>true</code> if the ticket is considered valid.</p>
 <h2 id="example-jwt-authenticated-streams"><a class="header" href="#example-jwt-authenticated-streams">Example: JWT-authenticated streams</a></h2>
 <p>A common pattern is to issue JWTs to authorized consumers. The producer
-then validates those JWTs inside its <code>accept_if</code> predicate.</p>
+then validates those JWTs inside its <code>require</code> predicate.</p>
 <h3 id="1-define-a-ticket-class"><a class="header" href="#1-define-a-ticket-class">1. Define a ticket class</a></h3>
 <p>Both producer and consumer agree on a <code>UniqueId</code> for the ticket class:</p>
 <pre><code class="language-rust ignore">use mosaik::{UniqueId, id};
@@ -266,13 +266,13 @@ let ticket = Ticket::new(JWT_TICKET, Bytes::from(jwt_string));
 network.discovery().add_ticket(ticket);</code></pre>
 <p>Because tickets propagate through gossip, the producer will see them
 when the consumer’s updated <code>PeerEntry</code> arrives.</p>
-<h3 id="3-producer-validate-tickets-in-accept_if"><a class="header" href="#3-producer-validate-tickets-in-accept_if">3. Producer: validate tickets in <code>accept_if</code></a></h3>
+<h3 id="3-producer-validate-tickets-in-require"><a class="header" href="#3-producer-validate-tickets-in-require">3. Producer: validate tickets in <code>require</code></a></h3>
 <p>The producer uses <code>has_valid_ticket</code> to check incoming consumers:</p>
 <pre><code class="language-rust ignore">use mosaik::streams;
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .accept_if(move |peer| {
+    .require(move |peer| {
         peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
             let jwt_str = std::str::from_utf8(jwt_bytes).unwrap_or("");
             // Verify signature, expiration, issuer, subject...
@@ -293,7 +293,7 @@ add_ticket(jwt)  ──────────►  PeerEntry { tickets: [jwt] }
                                gossip / catalog sync
                                         │
                                         ▼
-                                                              accept_if(peer)
+                                                              require(peer)
                                                               └─ has_valid_ticket(...)
                                                                  └─ validate jwt_bytes
                                                                     ├─ valid → accept
@@ -320,7 +320,7 @@ matters, encrypt the payload before wrapping it in a <code>Ticket</code> and
 decrypt inside the validator.</p>
 </li>
 <li>
-<p><strong>Ticket validation is synchronous.</strong> The <code>accept_if</code> closure and
+<p><strong>Ticket validation is synchronous.</strong> The <code>require</code> closure and
 the <code>validator</code> function passed to <code>has_valid_ticket</code> are plain
 <code>Fn</code> – they cannot perform async I/O. Keep validation fast and
 self-contained (e.g. signature checks, expiration comparisons).</p>
@@ -328,7 +328,7 @@ self-contained (e.g. signature checks, expiration comparisons).</p>
 <li>
 <p><strong>Multiple ticket classes.</strong> A single peer can carry tickets of
 different classes simultaneously. Producers can check for any
-combination of classes in their <code>accept_if</code> predicate.</p>
+combination of classes in their <code>require</code> predicate.</p>
 </li>
 </ul>
 

@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-326c2752.js";
+            window.path_to_searchindex_js = "../../searchindex-2f41afc2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-1970cca6.js"></script>
@@ -189,7 +189,7 @@
 <p><strong>With builder (advanced configuration):</strong></p>
 <pre><code class="language-rust ignore">let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .accept_if(|peer| peer.tags().contains(&amp;"trusted".into()))
+    .require(|peer| peer.tags().contains(&amp;"trusted".into()))
     .online_when(|c| c.minimum_of(2).with_tags("validator"))
     .disconnect_lagging(true)
     .with_buffer_size(2048)
@@ -203,7 +203,7 @@
 <tr><th>Method</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>accept_if(predicate)</code></td><td>Accept all</td><td>Predicate to accept/reject incoming consumer connections</td></tr>
+<tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Adds a consumer eligibility requirement (AND-composed)</td></tr>
 <tr><td><code>online_when(conditions)</code></td><td><code>minimum_of(1)</code></td><td>Conditions under which the producer is online</td></tr>
 <tr><td><code>disconnect_lagging(bool)</code></td><td><code>true</code></td><td>Disconnect consumers that fall behind <code>buffer_size</code></td></tr>
 <tr><td><code>with_buffer_size(n)</code></td><td><code>1024</code></td><td>Internal channel buffer size</td></tr>
@@ -234,14 +234,14 @@ producer.send(datum).await?;</code></pre>
 <p>Instead of (or in addition to) filtering by tags, you can require
 consumers to carry a valid auth ticket. Tickets are opaque credentials
 that consumers attach to their discovery entry and producers validate
-inside <code>accept_if</code>:</p>
+inside <code>require</code>:</p>
 <pre><code class="language-rust ignore">use mosaik::{UniqueId, unique_id};
 
 const JWT_TICKET: UniqueId = unique_id!("my-app.jwt");
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .accept_if(move |peer| {
+    .require(move |peer| {
         peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
             // Validate the JWT signature, expiration, subject, etc.
             validate_jwt(jwt_bytes, peer.id())

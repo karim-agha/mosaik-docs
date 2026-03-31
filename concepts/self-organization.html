@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-326c2752.js";
+            window.path_to_searchindex_js = "../searchindex-2f41afc2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-1970cca6.js"></script>
@@ -256,12 +256,12 @@ announce_jitter = 0.5  →  actual interval: 7.5s – 22.5s
 <p>Filtering can restrict which connections form:</p>
 <pre><code class="language-rust ignore">// Producer only accepts nodes tagged "authorized"
 let producer = network.streams().producer::&lt;Order&gt;()
-    .accept_if(|peer| peer.tags.contains(&amp;"authorized".into()))
+    .require(|peer| peer.tags.contains(&amp;"authorized".into()))
     .build()?;
 
 // Consumer only subscribes to nodes tagged "primary"
 let consumer = network.streams().consumer::&lt;Order&gt;()
-    .subscribe_if(|peer| peer.tags.contains(&amp;"primary".into()))
+    .require(|peer| peer.tags.contains(&amp;"primary".into()))
     .build();</code></pre>
 <h2 id="step-4-automatic-group-formation"><a class="header" href="#step-4-automatic-group-formation">Step 4: Automatic Group Formation</a></h2>
 <p>Groups form through a similar discovery-driven process:</p>

@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-326c2752.js";
+            window.path_to_searchindex_js = "searchindex-2f41afc2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-1970cca6.js"></script>
@@ -668,7 +668,7 @@ let another: Tag = "validator".into();</code></pre>
 <p>Tags are advertised through the discovery system and can be used to filter which peers a producer accepts or which producers a consumer subscribes to:</p>
 <pre><code class="language-rust ignore">// Only accept consumers that have the "authorized" tag
 let producer = network.streams().producer::&lt;Order&gt;()
-    .accept_if(|peer| peer.tags.contains(&amp;"authorized".into()))
+    .require(|peer| peer.tags.contains(&amp;"authorized".into()))
     .build()?;</code></pre>
 <h2 id="streamid-stream-identity"><a class="header" href="#streamid-stream-identity">StreamId: Stream Identity</a></h2>
 <p>By default, a <code>StreamId</code> is derived from the Rust type name:</p>
@@ -772,12 +772,12 @@ announce_jitter = 0.5  →  actual interval: 7.5s – 22.5s
 <p>Filtering can restrict which connections form:</p>
 <pre><code class="language-rust ignore">// Producer only accepts nodes tagged "authorized"
 let producer = network.streams().producer::&lt;Order&gt;()
-    .accept_if(|peer| peer.tags.contains(&amp;"authorized".into()))
+    .require(|peer| peer.tags.contains(&amp;"authorized".into()))
     .build()?;
 
 // Consumer only subscribes to nodes tagged "primary"
 let consumer = network.streams().consumer::&lt;Order&gt;()
-    .subscribe_if(|peer| peer.tags.contains(&amp;"primary".into()))
+    .require(|peer| peer.tags.contains(&amp;"primary".into()))
     .build();</code></pre>
 <h2 id="step-4-automatic-group-formation"><a class="header" href="#step-4-automatic-group-formation">Step 4: Automatic Group Formation</a></h2>
 <p>Groups form through a similar discovery-driven process:</p>
@@ -1813,12 +1813,12 @@ let peer_id = my_entry.peer_id();</code></pre>
 <p>The catalog is commonly used to filter peers in Streams:</p>
 <pre><code class="language-rust ignore">// Producer: only accept consumers with specific tags
 let producer = network.streams().producer::&lt;Order&gt;()
-    .accept_if(|peer| peer.tags.contains(&amp;"authorized".into()))
+    .require(|peer| peer.tags.contains(&amp;"authorized".into()))
     .build()?;
 
 // Consumer: only subscribe to specific producers
 let consumer = network.streams().consumer::&lt;Order&gt;()
-    .subscribe_if(|peer| peer.tags.contains(&amp;"primary".into()))
+    .require(|peer| peer.tags.contains(&amp;"primary".into()))
     .build();</code></pre>
 <h2 id="internal-structure"><a class="header" href="#internal-structure">Internal Structure</a></h2>
 <p>The catalog uses <code>im::OrdMap</code> — an immutable, persistent ordered map — for its internal storage. This provides:</p>
@@ -1850,7 +1850,7 @@ carry a valid JWT.</p>
 <p>The discovery system does <strong>not</strong> interpret ticket data. It simply
 stores, signs, and propagates tickets alongside the rest of the peer
 entry. Validation logic lives entirely in application code – typically
-inside a producer’s <code>accept_if</code> predicate.</p>
+inside a producer’s <code>require</code> predicate.</p>
 <h3 id="ticket-identity"><a class="header" href="#ticket-identity">Ticket identity</a></h3>
 <p>Each ticket has a deterministic <code>id()</code> derived from its <code>class</code> and
 <code>data</code>. This ID is used as the key in the peer entry’s ticket map, so
@@ -1878,8 +1878,8 @@ network.discovery().remove_ticket(ticket_id);
 // Remove all tickets of a given class
 network.discovery().remove_tickets_of(MY_TICKET_CLASS);</code></pre>
 <h2 id="querying-tickets-on-a-peer-entry"><a class="header" href="#querying-tickets-on-a-peer-entry">Querying tickets on a peer entry</a></h2>
-<p>When you receive a <code>PeerEntry</code> (for example, inside an <code>accept_if</code>
-closure), three methods are available:</p>
+<p>When you receive a <code>PeerEntry</code> (for example, inside an <code>require</code>
+closure), four methods are available:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1897,7 +1897,7 @@ closure), three methods are available:</p>
 returns <code>true</code> if the ticket is considered valid.</p>
 <h2 id="example-jwt-authenticated-streams"><a class="header" href="#example-jwt-authenticated-streams">Example: JWT-authenticated streams</a></h2>
 <p>A common pattern is to issue JWTs to authorized consumers. The producer
-then validates those JWTs inside its <code>accept_if</code> predicate.</p>
+then validates those JWTs inside its <code>require</code> predicate.</p>
 <h3 id="1-define-a-ticket-class"><a class="header" href="#1-define-a-ticket-class">1. Define a ticket class</a></h3>
 <p>Both producer and consumer agree on a <code>UniqueId</code> for the ticket class:</p>
 <pre><code class="language-rust ignore">use mosaik::{UniqueId, id};
@@ -1915,13 +1915,13 @@ let ticket = Ticket::new(JWT_TICKET, Bytes::from(jwt_string));
 network.discovery().add_ticket(ticket);</code></pre>
 <p>Because tickets propagate through gossip, the producer will see them
 when the consumer’s updated <code>PeerEntry</code> arrives.</p>
-<h3 id="3-producer-validate-tickets-in-accept_if"><a class="header" href="#3-producer-validate-tickets-in-accept_if">3. Producer: validate tickets in <code>accept_if</code></a></h3>
+<h3 id="3-producer-validate-tickets-in-require"><a class="header" href="#3-producer-validate-tickets-in-require">3. Producer: validate tickets in <code>require</code></a></h3>
 <p>The producer uses <code>has_valid_ticket</code> to check incoming consumers:</p>
 <pre><code class="language-rust ignore">use mosaik::streams;
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .accept_if(move |peer| {
+    .require(move |peer| {
         peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
             let jwt_str = std::str::from_utf8(jwt_bytes).unwrap_or("");
             // Verify signature, expiration, issuer, subject...
@@ -1942,7 +1942,7 @@ add_ticket(jwt)  ──────────►  PeerEntry { tickets: [jwt] }
                                gossip / catalog sync
                                         │
                                         ▼
-                                                              accept_if(peer)
+                                                              require(peer)
                                                               └─ has_valid_ticket(...)
                                                                  └─ validate jwt_bytes
                                                                     ├─ valid → accept
@@ -1969,7 +1969,7 @@ matters, encrypt the payload before wrapping it in a <code>Ticket</code> and
 decrypt inside the validator.</p>
 </li>
 <li>
-<p><strong>Ticket validation is synchronous.</strong> The <code>accept_if</code> closure and
+<p><strong>Ticket validation is synchronous.</strong> The <code>require</code> closure and
 the <code>validator</code> function passed to <code>has_valid_ticket</code> are plain
 <code>Fn</code> – they cannot perform async I/O. Keep validation fast and
 self-contained (e.g. signature checks, expiration comparisons).</p>
@@ -1977,7 +1977,7 @@ self-contained (e.g. signature checks, expiration comparisons).</p>
 <li>
 <p><strong>Multiple ticket classes.</strong> A single peer can carry tickets of
 different classes simultaneously. Producers can check for any
-combination of classes in their <code>accept_if</code> predicate.</p>
+combination of classes in their <code>require</code> predicate.</p>
 </li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -2133,7 +2133,7 @@ while let Some(update) = consumer.next().await {
 </thead>
 <tbody>
 <tr><td><code>10_404</code></td><td><code>StreamNotFound</code></td><td>The requested stream does not exist on the producer</td></tr>
-<tr><td><code>10_403</code></td><td><code>NotAllowed</code></td><td>The consumer is rejected by the producer’s <code>accept_if</code> predicate</td></tr>
+<tr><td><code>10_403</code></td><td><code>NotAllowed</code></td><td>The consumer is rejected by the producer’s <code>require</code> predicate</td></tr>
 <tr><td><code>10_509</code></td><td><code>NoCapacity</code></td><td>The producer has reached <code>max_consumers</code></td></tr>
 <tr><td><code>10_413</code></td><td><code>TooSlow</code></td><td>The consumer was disconnected for lagging behind</td></tr>
 </tbody>
@@ -2194,9 +2194,9 @@ declare::stream!(pub consumer PriceFeed = PriceUpdate, "oracle.price");</code></
 <p>Configuration keys can be added after the stream ID. The macro routes
 each key to the correct builder (producer or consumer) automatically:</p>
 <pre><code class="language-rust ignore">declare::stream!(pub PriceFeed = PriceUpdate, "oracle.price",
-    accept_if: |peer| peer.tags().contains(&amp;tag!("trusted")),
+    producer require: |peer| peer.tags().contains(&amp;tag!("trusted")),
     producer online_when: |c| c.minimum_of(2),
-    subscribe_if: |peer| true,
+    consumer require: |peer| true,
 );</code></pre>
 <h4 id="producer-side-keys-inferred-automatically"><a class="header" href="#producer-side-keys-inferred-automatically">Producer-side keys (inferred automatically)</a></h4>
 <div class="table-wrapper">
@@ -2205,7 +2205,7 @@ each key to the correct builder (producer or consumer) automatically:</p>
 <tr><th>Key</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>accept_if</code></td><td>Predicate for accepting consumer connections</td></tr>
+<tr><td></td><td></td></tr>
 <tr><td><code>max_consumers</code></td><td>Maximum number of concurrent consumers</td></tr>
 <tr><td><code>buffer_size</code></td><td>Internal channel buffer size</td></tr>
 <tr><td><code>disconnect_lagging</code></td><td>Disconnect slow consumers after duration</td></tr>
@@ -2219,7 +2219,6 @@ each key to the correct builder (producer or consumer) automatically:</p>
 <tr><th>Key</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>subscribe_if</code></td><td>Predicate for selecting eligible producers</td></tr>
 <tr><td><code>criteria</code></td><td>Data range criteria</td></tr>
 <tr><td><code>backoff</code></td><td>Retry backoff policy</td></tr>
 </tbody>
@@ -2232,6 +2231,7 @@ each key to the correct builder (producer or consumer) automatically:</p>
 <tr><th>Key</th><th>Description</th></tr>
 </thead>
 <tbody>
+<tr><td><code>require</code></td><td>Conditions for accepting a consumer or producer connection</td></tr>
 <tr><td><code>online_when</code></td><td>Conditions for the stream to be considered online</td></tr>
 </tbody>
 </table>
@@ -2352,7 +2352,7 @@ constants.</p>
 <p><strong>With builder (advanced configuration):</strong></p>
 <pre><code class="language-rust ignore">let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .accept_if(|peer| peer.tags().contains(&amp;"trusted".into()))
+    .require(|peer| peer.tags().contains(&amp;"trusted".into()))
     .online_when(|c| c.minimum_of(2).with_tags("validator"))
     .disconnect_lagging(true)
     .with_buffer_size(2048)
@@ -2366,7 +2366,7 @@ constants.</p>
 <tr><th>Method</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>accept_if(predicate)</code></td><td>Accept all</td><td>Predicate to accept/reject incoming consumer connections</td></tr>
+<tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Adds a consumer eligibility requirement (AND-composed)</td></tr>
 <tr><td><code>online_when(conditions)</code></td><td><code>minimum_of(1)</code></td><td>Conditions under which the producer is online</td></tr>
 <tr><td><code>disconnect_lagging(bool)</code></td><td><code>true</code></td><td>Disconnect consumers that fall behind <code>buffer_size</code></td></tr>
 <tr><td><code>with_buffer_size(n)</code></td><td><code>1024</code></td><td>Internal channel buffer size</td></tr>
@@ -2397,14 +2397,14 @@ producer.send(datum).await?;</code></pre>
 <p>Instead of (or in addition to) filtering by tags, you can require
 consumers to carry a valid auth ticket. Tickets are opaque credentials
 that consumers attach to their discovery entry and producers validate
-inside <code>accept_if</code>:</p>
+inside <code>require</code>:</p>
 <pre><code class="language-rust ignore">use mosaik::{UniqueId, unique_id};
 
 const JWT_TICKET: UniqueId = unique_id!("my-app.jwt");
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .accept_if(move |peer| {
+    .require(move |peer| {
         peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
             // Validate the JWT signature, expiration, subject, etc.
             validate_jwt(jwt_bytes, peer.id())
@@ -2497,7 +2497,7 @@ while let Some(datum) = rx.recv().await {
 <p><strong>With builder (advanced configuration):</strong></p>
 <pre><code class="language-rust ignore">let mut consumer = network.streams()
     .consumer::&lt;MyDatum&gt;()
-    .subscribe_if(|peer| peer.tags().contains(&amp;"primary".into()))
+    .require(|peer| peer.tags().contains(&amp;"primary".into()))
     .with_criteria(Criteria::default())
     .with_stream_id("custom-id")
     .with_backoff(ExponentialBackoffBuilder::default()
@@ -2511,7 +2511,7 @@ while let Some(datum) = rx.recv().await {
 <tr><th>Method</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>subscribe_if(predicate)</code></td><td>Accept all</td><td>Filter which producers to subscribe to</td></tr>
+<tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Peer eligibility predicate (AND-composed)</td></tr>
 <tr><td><code>with_criteria(criteria)</code></td><td><code>Criteria::default()</code></td><td>Data selection criteria sent to producers</td></tr>
 <tr><td><code>with_stream_id(id)</code></td><td><code>D::derived_stream_id()</code></td><td>Custom stream identity</td></tr>
 <tr><td><code>with_backoff(policy)</code></td><td>From <code>Streams</code> config</td><td>Backoff policy for reconnection retries</td></tr>
@@ -2547,11 +2547,11 @@ let filtered = consumer
     .collect::&lt;Vec&lt;_&gt;&gt;()
     .await;</code></pre>
 <h2 id="producer-selection"><a class="header" href="#producer-selection">Producer Selection</a></h2>
-<p>By default, a consumer subscribes to <strong>every</strong> discovered producer of the same stream ID. Use <code>subscribe_if</code> to be selective:</p>
+<p>By default, a consumer subscribes to <strong>every</strong> discovered producer of the same stream ID. Use <code>require</code> to be selective:</p>
 <pre><code class="language-rust ignore">// Only subscribe to producers tagged as "primary"
 let consumer = network.streams()
     .consumer::&lt;PriceUpdate&gt;()
-    .subscribe_if(|peer| peer.tags().contains(&amp;"primary".into()))
+    .require(|peer| peer.tags().contains(&amp;"primary".into()))
     .build();</code></pre>
 <p>The predicate receives a <code>&amp;PeerEntry</code> and is evaluated each time a new producer is discovered.</p>
 <h2 id="criteria"><a class="header" href="#criteria">Criteria</a></h2>
@@ -6099,7 +6099,7 @@ let id: UniqueId = ticket.id(); // deterministic, derived from class + data</cod
 <p>Tickets are stored in a peer’s <code>PeerEntry</code> and propagated via gossip and
 catalog sync. The discovery system never interprets ticket data –
 validation is done in application code (e.g. inside a producer’s
-<code>accept_if</code> predicate).</p>
+<code>require</code> predicate).</p>
 <p>See <a href="#auth-tickets">Discovery &gt; Auth Tickets</a> for
 a full walkthrough.</p>
 <hr>
@@ -6196,9 +6196,9 @@ stream!(pub consumer PriceFeed = PriceUpdate, "oracle.price");
 
 // With configuration
 stream!(pub PriceFeed = PriceUpdate, "oracle.price",
-    accept_if: |peer| peer.tags().contains(&amp;tag!("trusted")),
+    producer require: |peer| peer.tags().contains(&amp;tag!("trusted")),
     producer online_when: |c| c.minimum_of(2),
-    subscribe_if: |peer| true,
+    consumer require: |peer| true,
 );</code></pre>
 <p>The stream ID string is <strong>intent-addressed</strong> — hashed with blake3 at compile
 time (or decoded directly if it is exactly 64 hex characters). When omitted,

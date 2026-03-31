@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-249af3b4.js";
+            window.path_to_searchindex_js = "searchindex-5f03e61a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-1970cca6.js"></script>
@@ -193,7 +193,7 @@
 <p>When you deploy mosaik-based binaries on arbitrary machines, the network <strong>self-organizes</strong>: nodes discover each other via gossip, infer the data-flow topology, elect leaders where needed, and converge to a stable operational state. Each node needs only two things to participate:</p>
 <ol>
 <li><strong>A network ID</strong> — identifies which logical network to join</li>
-<li>** (optionally) A bootstrap peer** — the peer ID of any node already on the network (the <a href="https://github.com/flashbots/mosaik/blob/main/examples/bootstrap.rs">bootstrap example</a> can be used in production as a universal bootstrap node). Mosaik provides automatic bootstrap by publishing peer identities and their network id associations in Mainline DHT for zero-config discovery.</li>
+<li><strong>(optionally) A bootstrap peer</strong> — the peer ID of any node already on the network (the <a href="https://github.com/flashbots/mosaik/blob/main/examples/bootstrap.rs">bootstrap example</a> can be used in production as a universal bootstrap node). Mosaik provides automatic bootstrap by publishing peer identities and their network id associations in Mainline DHT for zero-config discovery.</li>
 </ol>
 <p>A secret key is automatically generated on each run, giving the node a unique identity. Specifying a fixed secret key is only recommended for bootstrap nodes that need a stable, well-known peer ID across restarts.</p>
 <p>From these minimal inputs, mosaik handles peer discovery, typed pub/sub data streaming, Raft-based consensus groups, and replicated data structures — all automatically.</p>

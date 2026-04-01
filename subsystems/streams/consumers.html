@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-2f41afc2.js";
+            window.path_to_searchindex_js = "../../searchindex-c7fd538c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-1970cca6.js"></script>
@@ -203,6 +203,7 @@
 </thead>
 <tbody>
 <tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Peer eligibility predicate (AND-composed)</td></tr>
+<tr><td><code>with_ticket_validator(validator)</code></td><td>None</td><td>Expiration-aware ticket validation</td></tr>
 <tr><td><code>with_criteria(criteria)</code></td><td><code>Criteria::default()</code></td><td>Data selection criteria sent to producers</td></tr>
 <tr><td><code>with_stream_id(id)</code></td><td><code>D::derived_stream_id()</code></td><td>Custom stream identity</td></tr>
 <tr><td><code>with_backoff(policy)</code></td><td>From <code>Streams</code> config</td><td>Backoff policy for reconnection retries</td></tr>
@@ -245,6 +246,22 @@ let consumer = network.streams()
     .require(|peer| peer.tags().contains(&amp;"primary".into()))
     .build();</code></pre>
 <p>The predicate receives a <code>&amp;PeerEntry</code> and is evaluated each time a new producer is discovered.</p>
+<h3 id="ticket-based-authentication"><a class="header" href="#ticket-based-authentication">Ticket-Based Authentication</a></h3>
+<p>Use <code>with_ticket_validator</code> to only subscribe to producers that carry a
+valid ticket. When a producer’s ticket expires, the consumer
+<strong>automatically disconnects</strong>:</p>
+<pre><code class="language-rust ignore">let consumer = network.streams()
+    .consumer::&lt;PriceUpdate&gt;()
+    .with_ticket_validator(MyJwtValidator::new())
+    .build();</code></pre>
+<p>The consumer validates each discovered producer’s tickets before
+attempting a connection. Producers without a valid ticket (or with an
+expired ticket) are skipped entirely. If a connected producer’s ticket
+expires mid-session, the consumer terminates the subscription.</p>
+<p>See <a href="producers.html#ticket-based-authentication">Producers &gt; Ticket-Based Authentication</a>
+for the <code>TicketValidator</code> trait definition, and
+<a href="../discovery/tickets.html">Discovery &gt; Auth Tickets</a> for ticket
+creation and attachment.</p>
 <h2 id="criteria"><a class="header" href="#criteria">Criteria</a></h2>
 <p><code>Criteria</code> are sent to the producer when subscribing. They allow content-based filtering at the source. Currently <code>Criteria</code> is a placeholder that matches everything:</p>
 <pre><code class="language-rust ignore">pub struct Criteria {}

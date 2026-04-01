@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2f41afc2.js";
+            window.path_to_searchindex_js = "../searchindex-c7fd538c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-1970cca6.js"></script>
@@ -234,6 +234,9 @@ const MY_ID: UniqueId = id!("a1b2c3d4e5f6...");         // 64-char hex literal
 const MY_ID: UniqueId = unique_id!("a1b2c3d4e5f6...");  // identical, longer name</code></pre>
 <p>Both accept either a 64-character hex string (decoded directly) or any other
 string (hashed with blake3).</p>
+<h4 id="id-vs-unique_id"><a class="header" href="#id-vs-unique_id"><code>id!</code> vs <code>unique_id!</code></a></h4>
+<p>The <code>id!</code> macro is a short alias for <code>unique_id!</code> — both produce a compile-time
+<code>UniqueId</code> from a string literal. Use whichever reads more naturally.</p>
 <h3 id="display"><a class="header" href="#display">Display</a></h3>
 <ul>
 <li><code>Display</code> — short hex (first 5 bytes): <code>a1b2c3d4e5</code></li>

@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2f41afc2.js";
+            window.path_to_searchindex_js = "../searchindex-c7fd538c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-1970cca6.js"></script>
@@ -215,18 +215,21 @@ if group.is_leader() {
     println!("I am the leader");
 }</code></pre>
 <h2 id="group-identity"><a class="header" href="#group-identity">Group Identity</a></h2>
-<p>A <code>GroupId</code> is derived from three components:</p>
+<p>A <code>GroupId</code> is derived from up to four components:</p>
 <ol>
 <li><strong>Group key</strong> — the shared secret (<code>GroupKey</code>)</li>
 <li><strong>Consensus configuration</strong> — election timeouts, heartbeat intervals, etc.</li>
 <li><strong>State machine signature</strong> — the state machine’s <code>signature()</code> + state sync <code>signature()</code></li>
+<li><strong>Ticket validator signature</strong> (optional) — the <code>TicketValidator</code>’s <code>signature()</code>, if <code>.require_ticket()</code> is configured</li>
 </ol>
 <p>Any divergence in these values across nodes produces a different <code>GroupId</code>, preventing misconfigured nodes from bonding.</p>
 <pre><code class="language-rust ignore">// GroupId derivation (internal)
 let id = key.secret().hashed()
     .derive(consensus.digest())
     .derive(state_machine.signature())
-    .derive(state_machine.state_sync().signature());</code></pre>
+    .derive(state_machine.state_sync().signature());
+// If require_ticket() is set:
+//   id = id.derive(validator.signature());</code></pre>
 <h2 id="key-types"><a class="header" href="#key-types">Key Types</a></h2>
 <div class="table-wrapper">
 <table>
@@ -241,6 +244,9 @@ let id = key.secret().hashed()
 <tr><td><code>GroupId</code></td><td>Unique identifier (<code>Digest</code>) derived from key + config + machine</td></tr>
 <tr><td><code>Bond</code> / <code>Bonds</code></td><td>Persistent connections between group members</td></tr>
 <tr><td><code>When</code></td><td>Reactive status API for group state changes</td></tr>
+<tr><td><code>TicketValidator</code></td><td>Trait for ticket-based peer authentication during bonding</td></tr>
+<tr><td><code>Expiration</code></td><td>Validation result: <code>Never</code> or <code>At(DateTime&lt;Utc&gt;)</code></td></tr>
+<tr><td><code>InvalidTicket</code></td><td>Error returned when ticket validation fails</td></tr>
 <tr><td><code>ConsensusConfig</code></td><td>Raft timing parameters</td></tr>
 </tbody>
 </table>

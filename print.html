@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2f41afc2.js";
+            window.path_to_searchindex_js = "searchindex-c7fd538c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-1970cca6.js"></script>
@@ -1879,7 +1879,7 @@ network.discovery().remove_ticket(ticket_id);
 network.discovery().remove_tickets_of(MY_TICKET_CLASS);</code></pre>
 <h2 id="querying-tickets-on-a-peer-entry"><a class="header" href="#querying-tickets-on-a-peer-entry">Querying tickets on a peer entry</a></h2>
 <p>When you receive a <code>PeerEntry</code> (for example, inside an <code>require</code>
-closure), four methods are available:</p>
+closure), five methods are available:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1890,11 +1890,17 @@ closure), four methods are available:</p>
 <tr><td><code>tickets_of(class)</code></td><td>Iterator over tickets matching the class</td></tr>
 <tr><td><code>valid_tickets(class, validator)</code></td><td>Iterator filtered by a <code>Fn(&amp;[u8]) -&gt; bool</code></td></tr>
 <tr><td><code>has_valid_ticket(class, validator)</code></td><td><code>true</code> if at least one ticket passes the check</td></tr>
+<tr><td><code>validate_ticket(validator)</code></td><td><code>Result&lt;Expiration, InvalidTicket&gt;</code> – longest valid expiration</td></tr>
 </tbody>
 </table>
 </div>
-<p>The <code>validator</code> closure receives the raw <code>data</code> bytes of each ticket and
-returns <code>true</code> if the ticket is considered valid.</p>
+<p>The <code>validator</code> closure (used by <code>valid_tickets</code> and <code>has_valid_ticket</code>)
+receives the raw <code>data</code> bytes of each ticket and returns <code>true</code> if valid.
+These closure-based methods are convenient for stream <code>require</code> predicates.</p>
+<p>The <code>validate_ticket</code> method accepts a <code>&amp;dyn TicketValidator</code> and returns
+the <code>Expiration</code> with the longest validity among all matching tickets, or
+<code>InvalidTicket</code> if none pass. This is used internally by the groups
+subsystem for expiration-aware bond management.</p>
 <h2 id="example-jwt-authenticated-streams"><a class="header" href="#example-jwt-authenticated-streams">Example: JWT-authenticated streams</a></h2>
 <p>A common pattern is to issue JWTs to authorized consumers. The producer
 then validates those JWTs inside its <code>require</code> predicate.</p>
@@ -1915,11 +1921,33 @@ let ticket = Ticket::new(JWT_TICKET, Bytes::from(jwt_string));
 network.discovery().add_ticket(ticket);</code></pre>
 <p>Because tickets propagate through gossip, the producer will see them
 when the consumer’s updated <code>PeerEntry</code> arrives.</p>
-<h3 id="3-producer-validate-tickets-in-require"><a class="header" href="#3-producer-validate-tickets-in-require">3. Producer: validate tickets in <code>require</code></a></h3>
-<p>The producer uses <code>has_valid_ticket</code> to check incoming consumers:</p>
-<pre><code class="language-rust ignore">use mosaik::streams;
+<h3 id="3-validate-tickets-on-streams"><a class="header" href="#3-validate-tickets-on-streams">3. Validate tickets on streams</a></h3>
+<h4 id="using-with_ticket_validator-recommended"><a class="header" href="#using-with_ticket_validator-recommended">Using <code>with_ticket_validator</code> (recommended)</a></h4>
+<p>The <code>with_ticket_validator</code> method accepts a <code>TicketValidator</code>
+implementation. It validates tickets at connection time <strong>and</strong>
+proactively disconnects peers when their tickets expire:</p>
+<pre><code class="language-rust ignore">let producer = network.streams()
+    .producer::&lt;MyDatum&gt;()
+    .with_ticket_validator(MyJwtValidator::new())
+    .build()?;
 
-let producer = network.streams()
+let consumer = network.streams()
+    .consumer::&lt;MyDatum&gt;()
+    .with_ticket_validator(MyJwtValidator::new())
+    .build();</code></pre>
+<p>Both producer and consumer builders support <code>with_ticket_validator</code>.
+The <code>stream!</code> macro also supports this via the <code>require_ticket</code> key:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+
+declare::stream!(pub AuthFeed = MyDatum, "auth.feed",
+    require_ticket: MyJwtValidator::new(),
+);</code></pre>
+<p>See <a href="#the-stream-macro-recommended">Streams &gt; The <code>stream!</code> macro</a>
+for full macro syntax.</p>
+<h4 id="using-require-with-closures"><a class="header" href="#using-require-with-closures">Using <code>require</code> with closures</a></h4>
+<p>For simpler validation without expiration tracking, use
+<code>has_valid_ticket</code> inside a <code>require</code> predicate:</p>
+<pre><code class="language-rust ignore">let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
     .require(move |peer| {
         peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
@@ -1948,13 +1976,224 @@ add_ticket(jwt)  ──────────►  PeerEntry { tickets: [jwt] }
                                                                     ├─ valid → accept
                                                                     └─ invalid → reject
 </code></pre>
-<p>Consumers that lack a valid ticket are never connected. Consumers whose
-tickets expire can be rejected on subsequent reconnection attempts (the
-predicate is re-evaluated each time).</p>
-<h2 id="id-vs-unique_id"><a class="header" href="#id-vs-unique_id"><code>id!</code> vs <code>unique_id!</code></a></h2>
-<p>The <code>id!</code> macro is a short alias for <code>unique_id!</code> — both produce a compile-time
-<code>UniqueId</code> from a string literal. Use whichever reads more naturally; <code>id!</code> is
-preferred in the examples throughout this chapter.</p>
+<p>Consumers that lack a valid ticket are never connected. When using
+<code>with_ticket_validator</code>, expired tickets trigger <strong>proactive
+disconnection</strong> on both producer and consumer sides — no reconnection
+attempt is needed. When using the closure-based <code>require</code> approach,
+expired tickets are rejected on subsequent reconnection attempts.
+For groups, expired tickets trigger proactive bond termination —
+see <a href="#joining-groups">Groups &gt; Joining</a>.</p>
+<h2 id="the-ticketvalidator-trait"><a class="header" href="#the-ticketvalidator-trait">The <code>TicketValidator</code> trait</a></h2>
+<p>The <code>TicketValidator</code> trait provides structured, expiration-aware ticket
+validation. Unlike the closure-based <code>require</code> approach (which returns a
+simple <code>bool</code>), a <code>TicketValidator</code> returns an <code>Expiration</code> value that
+the runtime uses to <strong>proactively disconnect</strong> peers when their
+credentials expire – no reconnection round-trip required.</p>
+<pre><code class="language-rust ignore">pub trait TicketValidator: Send + Sync + 'static {
+    /// Class of tickets that this validator can validate.
+    fn class(&amp;self) -&gt; UniqueId;
+
+    /// A unique identifier for the validator type and its configuration.
+    ///
+    /// In Groups, this is used as part of the group ID derivation, so
+    /// all members must use the same validator type and configuration.
+    fn signature(&amp;self) -&gt; UniqueId;
+
+    /// Validates the given ticket for the specified peer.
+    fn validate(
+        &amp;self,
+        ticket: &amp;[u8],
+        peer: &amp;PeerEntry,
+    ) -&gt; Result&lt;Expiration, InvalidTicket&gt;;
+}</code></pre>
+<h3 id="method-summary"><a class="header" href="#method-summary">Method summary</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>class()</code></td><td>Returns the <code>UniqueId</code> matching the ticket class this validator handles. Only tickets of this class are passed to <code>validate()</code>.</td></tr>
+<tr><td><code>signature()</code></td><td>Returns a deterministic identifier derived from the validator type <strong>and</strong> its configuration. Used in group ID derivation – all group members must produce the same signature.</td></tr>
+<tr><td><code>validate()</code></td><td>Receives the raw ticket bytes and the <code>PeerEntry</code> of the peer being validated. Returns <code>Ok(Expiration)</code> on success or <code>Err(InvalidTicket)</code> on failure.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="when-to-use-ticketvalidator-vs-require-closures"><a class="header" href="#when-to-use-ticketvalidator-vs-require-closures">When to use <code>TicketValidator</code> vs <code>require</code> closures</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Feature</th><th><code>TicketValidator</code></th><th><code>require</code> closure</th></tr>
+</thead>
+<tbody>
+<tr><td>Proactive expiration disconnect</td><td>Yes</td><td>No (next reconnect)</td></tr>
+<tr><td>Group ID derivation</td><td>Yes (via <code>signature()</code>)</td><td>Not applicable</td></tr>
+<tr><td>Complexity</td><td>Implement a trait</td><td>Inline closure</td></tr>
+<tr><td>Best for</td><td>Production auth</td><td>Quick prototyping</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="example-jwt-ticket-validator"><a class="header" href="#example-jwt-ticket-validator">Example: JWT ticket validator</a></h3>
+<p>Below is a complete <code>TicketValidator</code> implementation using JWTs with
+HMAC-SHA256 signatures. It validates the issuer, subject (must match the
+peer’s ID), and expiration claims.</p>
+<p>Add these dependencies to your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+hmac = "0.12"
+jwt = "0.16"
+sha2 = "0.10"
+chrono = "0.4"
+</code></pre>
+<p>Then implement the validator:</p>
+<pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
+use jwt::{RegisteredClaims, SignWithKey, VerifyWithKey};
+use mosaik::{
+    Bytes, Expiration, InvalidTicket, PeerId, Ticket,
+    TicketValidator, UniqueId, discovery::PeerEntry, id,
+};
+use std::time::Duration;
+
+pub struct JwtTicketValidator {
+    key: Hmac&lt;sha2::Sha256&gt;,
+    issuer: String,
+    secret: String,
+}
+
+impl JwtTicketValidator {
+    pub fn new(issuer: &amp;str, secret: &amp;str) -&gt; Self {
+        Self {
+            key: Hmac::new_from_slice(secret.as_bytes()).unwrap(),
+            issuer: issuer.to_string(),
+            secret: secret.to_string(),
+        }
+    }
+
+    /// Create a signed JWT ticket for a specific peer.
+    pub fn make_ticket(
+        &amp;self,
+        peer_id: &amp;PeerId,
+        expiration: Expiration,
+    ) -&gt; Ticket {
+        Ticket::new(
+            self.class(),
+            jwt::Claims::new(RegisteredClaims {
+                issuer: Some(self.issuer.clone()),
+                subject: Some(peer_id.to_string()),
+                expiration: match expiration {
+                    Expiration::Never =&gt; None,
+                    Expiration::At(ts) =&gt; {
+                        Some(ts.timestamp() as u64)
+                    }
+                },
+                ..Default::default()
+            })
+            .sign_with_key(&amp;self.key)
+            .unwrap()
+            .into(),
+        )
+    }
+
+    /// Create a ticket that expires after the given duration.
+    pub fn make_ticket_expiring_in(
+        &amp;self,
+        peer_id: &amp;PeerId,
+        duration: Duration,
+    ) -&gt; Ticket {
+        let exp = chrono::Utc::now()
+            + chrono::Duration::from_std(duration).unwrap();
+        self.make_ticket(peer_id, Expiration::At(exp))
+    }
+}
+
+impl TicketValidator for JwtTicketValidator {
+    fn class(&amp;self) -&gt; UniqueId {
+        id!("my-app.jwt")
+    }
+
+    fn signature(&amp;self) -&gt; UniqueId {
+        // Derive from class + issuer + secret so that validators
+        // with different configurations produce different signatures.
+        self.class()
+            .derive(&amp;self.issuer)
+            .derive(&amp;self.secret)
+    }
+
+    fn validate(
+        &amp;self,
+        ticket: &amp;[u8],
+        peer: &amp;PeerEntry,
+    ) -&gt; Result&lt;Expiration, InvalidTicket&gt; {
+        let jwt_str =
+            core::str::from_utf8(ticket).map_err(|_| InvalidTicket)?;
+
+        let claims: jwt::Claims = jwt_str
+            .verify_with_key(&amp;self.key)
+            .map_err(|_| InvalidTicket)?;
+
+        let now = chrono::Utc::now().timestamp() as u64;
+        let exp = claims.registered.expiration;
+
+        // Reject if issuer doesn't match
+        if claims.registered.issuer.as_deref() != Some(&amp;self.issuer) {
+            return Err(InvalidTicket);
+        }
+
+        // Reject if subject doesn't match the peer's ID
+        if claims.registered.subject
+            != Some(peer.id().to_string())
+        {
+            return Err(InvalidTicket);
+        }
+
+        // Reject if already expired
+        if exp &lt;= Some(now) {
+            return Err(InvalidTicket);
+        }
+
+        // Convert the expiration claim to an Expiration value
+        Ok(exp
+            .and_then(|ts| {
+                chrono::DateTime::from_timestamp(ts as i64, 0)
+            })
+            .map_or(Expiration::Never, Expiration::At))
+    }
+}</code></pre>
+<h3 id="using-the-validator"><a class="header" href="#using-the-validator">Using the validator</a></h3>
+<p>With streams (trait-based):</p>
+<pre><code class="language-rust ignore">let validator = JwtTicketValidator::new("my-app", "my-secret");
+
+// Producer side -- validates incoming consumers
+let producer = network.streams()
+    .producer::&lt;MyDatum&gt;()
+    .with_ticket_validator(
+        JwtTicketValidator::new("my-app", "my-secret"),
+    )
+    .build()?;
+
+// Consumer side -- validates discovered producers
+let consumer = network.streams()
+    .consumer::&lt;MyDatum&gt;()
+    .with_ticket_validator(
+        JwtTicketValidator::new("my-app", "my-secret"),
+    )
+    .build();</code></pre>
+<p>With groups:</p>
+<pre><code class="language-rust ignore">let group = network.groups()
+    .builder::&lt;MyStateMachine&gt;()
+    .require_ticket(
+        JwtTicketValidator::new("my-app", "my-secret"),
+    )
+    .build()?;</code></pre>
+<p>The consumer creates and attaches the ticket:</p>
+<pre><code class="language-rust ignore">let validator = JwtTicketValidator::new("my-app", "my-secret");
+let ticket = validator.make_ticket_expiring_in(
+    network.local().peer_id(),
+    Duration::from_secs(3600),
+);
+network.discovery().add_ticket(ticket);</code></pre>
+<p>When the JWT’s <code>exp</code> claim is reached, the runtime automatically
+terminates the connection (stream subscription or group bond) without
+waiting for a reconnection attempt.</p>
 <h2 id="design-notes"><a class="header" href="#design-notes">Design notes</a></h2>
 <ul>
 <li>
@@ -1971,8 +2210,18 @@ decrypt inside the validator.</p>
 <li>
 <p><strong>Ticket validation is synchronous.</strong> The <code>require</code> closure and
 the <code>validator</code> function passed to <code>has_valid_ticket</code> are plain
-<code>Fn</code> – they cannot perform async I/O. Keep validation fast and
-self-contained (e.g. signature checks, expiration comparisons).</p>
+<code>Fn</code> – they cannot perform async I/O. The <code>TicketValidator::validate</code>
+method is also synchronous. Keep validation fast and self-contained
+(e.g. signature checks, expiration comparisons).</p>
+</li>
+<li>
+<p><strong>Expiration-aware validation.</strong> <code>TicketValidator::validate</code> returns
+<code>Result&lt;Expiration, InvalidTicket&gt;</code>. Validators should return
+<code>Expiration::At(time)</code> for time-limited credentials (e.g. JWTs with
+<code>exp</code> claims) and <code>Expiration::Never</code> for permanent ones. Both the
+groups and streams subsystems use this to proactively terminate
+connections when tickets expire, rather than waiting for the next
+reconnection attempt.</p>
 </li>
 <li>
 <p><strong>Multiple ticket classes.</strong> A single peer can carry tickets of
@@ -2232,16 +2481,29 @@ each key to the correct builder (producer or consumer) automatically:</p>
 </thead>
 <tbody>
 <tr><td><code>require</code></td><td>Conditions for accepting a consumer or producer connection</td></tr>
+<tr><td><code>require_ticket</code></td><td>Expiration-aware ticket validator (see below)</td></tr>
 <tr><td><code>online_when</code></td><td>Conditions for the stream to be considered online</td></tr>
 </tbody>
 </table>
 </div>
-<p>Without a prefix, <code>online_when</code> applies to <strong>both</strong> sides. Use
-<code>producer online_when</code> or <code>consumer online_when</code> to target one:</p>
+<p>Without a prefix, ambiguous keys apply to <strong>both</strong> sides. Use
+<code>producer</code> or <code>consumer</code> prefixes to target one:</p>
 <pre><code class="language-rust ignore">stream!(pub PriceFeed = PriceUpdate,
     producer online_when: |c| c.minimum_of(2),
     consumer online_when: |c| c.minimum_of(1),
 );</code></pre>
+<h4 id="ticket-validator"><a class="header" href="#ticket-validator">Ticket validator</a></h4>
+<p>The <code>require_ticket</code> key accepts an expression that implements
+<code>TicketValidator</code>. It maps to <code>.with_ticket_validator(expr)</code> on the
+underlying builder. When the ticket expires, the connection is
+automatically terminated:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+
+declare::stream!(pub AuthFeed = PriceUpdate, "auth.feed",
+    require_ticket: MyJwtValidator::new(),
+);</code></pre>
+<p>See <a href="discovery/tickets.html">Discovery &gt; Auth Tickets</a> for the
+<code>TicketValidator</code> trait and JWT examples.</p>
 <h3 id="usage"><a class="header" href="#usage">Usage</a></h3>
 <p>Call the trait methods on the generated struct to create producer or
 consumer instances:</p>
@@ -2367,6 +2629,7 @@ constants.</p>
 </thead>
 <tbody>
 <tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Adds a consumer eligibility requirement (AND-composed)</td></tr>
+<tr><td><code>with_ticket_validator(validator)</code></td><td>None</td><td>Expiration-aware ticket validation (see below)</td></tr>
 <tr><td><code>online_when(conditions)</code></td><td><code>minimum_of(1)</code></td><td>Conditions under which the producer is online</td></tr>
 <tr><td><code>disconnect_lagging(bool)</code></td><td><code>true</code></td><td>Disconnect consumers that fall behind <code>buffer_size</code></td></tr>
 <tr><td><code>with_buffer_size(n)</code></td><td><code>1024</code></td><td>Internal channel buffer size</td></tr>
@@ -2394,10 +2657,41 @@ producer.send(datum).await?;</code></pre>
 }</code></pre>
 <p>All error variants return the unsent datum so you can retry or inspect it.</p>
 <h2 id="ticket-based-authentication"><a class="header" href="#ticket-based-authentication">Ticket-Based Authentication</a></h2>
-<p>Instead of (or in addition to) filtering by tags, you can require
-consumers to carry a valid auth ticket. Tickets are opaque credentials
-that consumers attach to their discovery entry and producers validate
-inside <code>require</code>:</p>
+<h3 id="using-with_ticket_validator-recommended-1"><a class="header" href="#using-with_ticket_validator-recommended-1">Using <code>with_ticket_validator</code> (recommended)</a></h3>
+<p>The <code>with_ticket_validator</code> method accepts a <code>TicketValidator</code>
+implementation that validates consumer tickets and returns their
+expiration. When a ticket expires, the producer <strong>proactively
+disconnects</strong> the consumer — no reconnection attempt is needed:</p>
+<pre><code class="language-rust ignore">use mosaik::primitives::{TicketValidator, Expiration, InvalidTicket};
+
+let producer = network.streams()
+    .producer::&lt;MyDatum&gt;()
+    .with_ticket_validator(MyJwtValidator::new())
+    .build()?;</code></pre>
+<p>The <code>TicketValidator</code> trait:</p>
+<pre><code class="language-rust ignore">pub trait TicketValidator: Send + Sync + 'static {
+    fn class(&amp;self) -&gt; UniqueId;
+    fn signature(&amp;self) -&gt; UniqueId;
+    fn validate(
+        &amp;self,
+        ticket: &amp;[u8],
+        peer: &amp;PeerEntry,
+    ) -&gt; Result&lt;Expiration, InvalidTicket&gt;;
+}</code></pre>
+<ul>
+<li><code>class()</code> — the <code>UniqueId</code> of the ticket class to look for.</li>
+<li><code>signature()</code> — a deterministic ID used in group identity derivation
+(derive from the class and any configuration such as the issuer).</li>
+<li><code>validate()</code> — checks the ticket bytes and peer entry, returning
+<code>Expiration::At(time)</code> for time-limited credentials or
+<code>Expiration::Never</code> for permanent ones.</li>
+</ul>
+<p>This is the same trait used by <a href="#groups-1">Groups</a> for bond
+authentication.</p>
+<h3 id="using-require-with-closures-1"><a class="header" href="#using-require-with-closures-1">Using <code>require</code> with closures</a></h3>
+<p>For simpler cases, you can validate tickets inside a <code>require</code>
+predicate using the <code>has_valid_ticket</code> helper. This approach does
+<strong>not</strong> track expiration — it only validates at connection time:</p>
 <pre><code class="language-rust ignore">use mosaik::{UniqueId, unique_id};
 
 const JWT_TICKET: UniqueId = unique_id!("my-app.jwt");
@@ -2406,7 +2700,6 @@ let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
     .require(move |peer| {
         peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
-            // Validate the JWT signature, expiration, subject, etc.
             validate_jwt(jwt_bytes, peer.id())
         })
     })
@@ -2512,6 +2805,7 @@ while let Some(datum) = rx.recv().await {
 </thead>
 <tbody>
 <tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Peer eligibility predicate (AND-composed)</td></tr>
+<tr><td><code>with_ticket_validator(validator)</code></td><td>None</td><td>Expiration-aware ticket validation</td></tr>
 <tr><td><code>with_criteria(criteria)</code></td><td><code>Criteria::default()</code></td><td>Data selection criteria sent to producers</td></tr>
 <tr><td><code>with_stream_id(id)</code></td><td><code>D::derived_stream_id()</code></td><td>Custom stream identity</td></tr>
 <tr><td><code>with_backoff(policy)</code></td><td>From <code>Streams</code> config</td><td>Backoff policy for reconnection retries</td></tr>
@@ -2554,6 +2848,22 @@ let consumer = network.streams()
     .require(|peer| peer.tags().contains(&amp;"primary".into()))
     .build();</code></pre>
 <p>The predicate receives a <code>&amp;PeerEntry</code> and is evaluated each time a new producer is discovered.</p>
+<h3 id="ticket-based-authentication-1"><a class="header" href="#ticket-based-authentication-1">Ticket-Based Authentication</a></h3>
+<p>Use <code>with_ticket_validator</code> to only subscribe to producers that carry a
+valid ticket. When a producer’s ticket expires, the consumer
+<strong>automatically disconnects</strong>:</p>
+<pre><code class="language-rust ignore">let consumer = network.streams()
+    .consumer::&lt;PriceUpdate&gt;()
+    .with_ticket_validator(MyJwtValidator::new())
+    .build();</code></pre>
+<p>The consumer validates each discovered producer’s tickets before
+attempting a connection. Producers without a valid ticket (or with an
+expired ticket) are skipped entirely. If a connected producer’s ticket
+expires mid-session, the consumer terminates the subscription.</p>
+<p>See <a href="#ticket-based-authentication">Producers &gt; Ticket-Based Authentication</a>
+for the <code>TicketValidator</code> trait definition, and
+<a href="#auth-tickets">Discovery &gt; Auth Tickets</a> for ticket
+creation and attachment.</p>
 <h2 id="criteria"><a class="header" href="#criteria">Criteria</a></h2>
 <p><code>Criteria</code> are sent to the producer when subscribing. They allow content-based filtering at the source. Currently <code>Criteria</code> is a placeholder that matches everything:</p>
 <pre><code class="language-rust ignore">pub struct Criteria {}
@@ -2786,18 +3096,21 @@ if group.is_leader() {
     println!("I am the leader");
 }</code></pre>
 <h2 id="group-identity"><a class="header" href="#group-identity">Group Identity</a></h2>
-<p>A <code>GroupId</code> is derived from three components:</p>
+<p>A <code>GroupId</code> is derived from up to four components:</p>
 <ol>
 <li><strong>Group key</strong> — the shared secret (<code>GroupKey</code>)</li>
 <li><strong>Consensus configuration</strong> — election timeouts, heartbeat intervals, etc.</li>
 <li><strong>State machine signature</strong> — the state machine’s <code>signature()</code> + state sync <code>signature()</code></li>
+<li><strong>Ticket validator signature</strong> (optional) — the <code>TicketValidator</code>’s <code>signature()</code>, if <code>.require_ticket()</code> is configured</li>
 </ol>
 <p>Any divergence in these values across nodes produces a different <code>GroupId</code>, preventing misconfigured nodes from bonding.</p>
 <pre><code class="language-rust ignore">// GroupId derivation (internal)
 let id = key.secret().hashed()
     .derive(consensus.digest())
     .derive(state_machine.signature())
-    .derive(state_machine.state_sync().signature());</code></pre>
+    .derive(state_machine.state_sync().signature());
+// If require_ticket() is set:
+//   id = id.derive(validator.signature());</code></pre>
 <h2 id="key-types"><a class="header" href="#key-types">Key Types</a></h2>
 <div class="table-wrapper">
 <table>
@@ -2812,6 +3125,9 @@ let id = key.secret().hashed()
 <tr><td><code>GroupId</code></td><td>Unique identifier (<code>Digest</code>) derived from key + config + machine</td></tr>
 <tr><td><code>Bond</code> / <code>Bonds</code></td><td>Persistent connections between group members</td></tr>
 <tr><td><code>When</code></td><td>Reactive status API for group state changes</td></tr>
+<tr><td><code>TicketValidator</code></td><td>Trait for ticket-based peer authentication during bonding</td></tr>
+<tr><td><code>Expiration</code></td><td>Validation result: <code>Never</code> or <code>At(DateTime&lt;Utc&gt;)</code></td></tr>
+<tr><td><code>InvalidTicket</code></td><td>Error returned when ticket validation fails</td></tr>
 <tr><td><code>ConsensusConfig</code></td><td>Raft timing parameters</td></tr>
 </tbody>
 </table>
@@ -2855,8 +3171,10 @@ let config = Config::builder()
 <h2 id="builder-flow"><a class="header" href="#builder-flow">Builder Flow</a></h2>
 <pre><code>groups.with_key(key)
   ├── .join()                          // NoOp machine, InMemoryLogStore
+  ├── .require_ticket(validator)       // ticket-based peer auth (any stage)
   └── .with_state_machine(machine)
         ├── .join()                    // InMemoryLogStore (default)
+        ├── .require_ticket(validator)
         ├── .with_consensus_config(c)
         │     └── .join()
         └── .with_log_storage(store)
@@ -2939,6 +3257,72 @@ let config = ConsensusConfig::default().deprioritize_leadership();
 // Custom multiplier
 let config = ConsensusConfig::default().deprioritize_leadership_by(5);</code></pre>
 <p>This multiplies both <code>election_timeout</code> and <code>bootstrap_delay</code>, reducing the chance of becoming leader.</p>
+<h2 id="ticket-based-peer-authentication"><a class="header" href="#ticket-based-peer-authentication">Ticket-Based Peer Authentication</a></h2>
+<p>By default, any peer that knows the <code>GroupKey</code> can join a group. To add an
+extra layer of verification, call <code>.require_ticket()</code> with a
+<code>TicketValidator</code> implementation. During bonding, each peer’s discovery
+tickets are checked against the validator – only peers carrying a valid
+ticket of the expected class are allowed to form bonds.</p>
+<pre><code class="language-rust ignore">use mosaik::primitives::TicketValidator;
+use mosaik::discovery::PeerEntry;
+use mosaik::{UniqueId, id, Expiration, InvalidTicket};
+
+struct MyAuth;
+
+impl TicketValidator for MyAuth {
+    fn class(&amp;self) -&gt; UniqueId {
+        id!("my-app.group-auth")
+    }
+
+    fn signature(&amp;self) -&gt; UniqueId {
+        // Must be identical across all group members.
+        // Include any configuration that affects validation.
+        id!("my-app.group-auth.v1")
+    }
+
+    fn validate(
+        &amp;self,
+        ticket: &amp;[u8],
+        peer: &amp;PeerEntry,
+    ) -&gt; Result&lt;Expiration, InvalidTicket&gt; {
+        if ticket.is_empty() {
+            return Err(InvalidTicket);
+        }
+        // Application-specific validation logic.
+        // Return Expiration::Never for non-expiring tickets,
+        // or Expiration::At(datetime) for time-limited ones.
+        Ok(Expiration::Never)
+    }
+}
+
+let group = network.groups()
+    .with_key(key)
+    .with_state_machine(MyStateMachine::new())
+    .require_ticket(MyAuth)
+    .join();</code></pre>
+<h3 id="key-points"><a class="header" href="#key-points">Key points</a></h3>
+<ul>
+<li><strong>Affects <code>GroupId</code> derivation.</strong> The validator’s <code>signature()</code> is mixed
+into the group ID. All members must use the same validator configuration,
+or they will derive different group IDs and never bond.</li>
+<li><strong>Peers must attach tickets via discovery.</strong> Each peer calls
+<code>network.discovery().add_ticket(ticket)</code> with a <code>Ticket</code> whose <code>class</code>
+matches the validator’s <code>class()</code>. See
+<a href="#auth-tickets">Auth Tickets</a> for details.</li>
+<li><strong>Revocation is automatic.</strong> If a bonded peer removes its ticket (or the
+ticket expires and fails re-validation), the bond is terminated.</li>
+<li><strong>Expiration-aware bonds.</strong> When <code>validate</code> returns
+<code>Ok(Expiration::At(time))</code>, the bond worker schedules a timer. When the
+ticket expires, the peer’s ticket is re-validated automatically. If
+re-validation fails, the bond is terminated with <code>NotAllowed</code>. Peers can
+refresh their ticket by publishing a new one via discovery — the bond
+worker picks up the updated expiration on the next peer entry update.</li>
+<li><strong><code>GroupKey</code> can be derived from the validator.</strong> Instead of manually
+generating a key, you can use <code>GroupKey::from(&amp;validator)</code> to derive a
+deterministic key from the validator’s <code>signature()</code>.</li>
+<li><strong>Accepts <code>Box&lt;dyn TicketValidator&gt;</code> and <code>Arc&lt;dyn TicketValidator&gt;</code></strong> in
+addition to concrete types.</li>
+</ul>
 <h2 id="idempotent-joins"><a class="header" href="#idempotent-joins">Idempotent Joins</a></h2>
 <p>If you <code>join()</code> a group whose <code>GroupId</code> already exists on this node, the existing <code>Group</code> handle is returned. No duplicate worker is spawned.</p>
 <h2 id="lifecycle-1"><a class="header" href="#lifecycle-1">Lifecycle</a></h2>
@@ -5064,9 +5448,9 @@ group key before exchanging any group-internal state:</p>
     │             ⊕ group_key)             │
     │   · known bonds list                 │
     │                                      │
-    │                    verify proof       │
+    │                       verify proof   │
     │                                      │
-    │◄─── HandshakeEnd ───────────────────┤
+    │◄─── HandshakeEnd ────────────────────┤
     │     · proof (acceptor's)             │
     │     · known bonds list               │
     │                                      │
@@ -5090,7 +5474,22 @@ combined with the group key. This ensures:</p>
 <li>Propagates <strong>peer entry updates</strong> when discovery information changes.</li>
 <li>Announces <strong>new bonds</strong> (<code>BondFormed</code>) so peers learn about topology changes.</li>
 <li>Handles <strong>graceful departure</strong> when a peer is shutting down.</li>
+<li>Monitors <strong>ticket expiration</strong> when the group uses <code>.require_ticket()</code>.</li>
 </ul>
+<h4 id="ticket-expiration-timer"><a class="header" href="#ticket-expiration-timer">Ticket expiration timer</a></h4>
+<p>When a group requires ticket-based authentication, the bond worker tracks the
+<code>Expiration</code> returned by <code>TicketValidator::validate</code>. If the ticket has a
+finite expiration (<code>Expiration::At(time)</code>), the worker schedules a timer.
+When the timer fires:</p>
+<ol>
+<li>The peer’s current tickets are re-validated.</li>
+<li>If a new valid ticket is found (e.g. the peer refreshed their JWT),
+the timer is reset to the new expiration.</li>
+<li>If no valid ticket remains, the bond is terminated with <code>NotAllowed</code>.</li>
+</ol>
+<p>Peer entry updates (received via <code>PeerEntryUpdate</code> messages or discovery
+gossip) also trigger re-validation and reset the timer, so peers can
+seamlessly rotate credentials before they expire.</p>
 <h3 id="3-failure-and-reconnection"><a class="header" href="#3-failure-and-reconnection">3. Failure and reconnection</a></h3>
 <p>If heartbeats are missed beyond the configured threshold, the bond is
 considered failed and torn down. Both sides independently detect the failure.
@@ -6063,6 +6462,9 @@ const MY_ID: UniqueId = id!("a1b2c3d4e5f6...");         // 64-char hex literal
 const MY_ID: UniqueId = unique_id!("a1b2c3d4e5f6...");  // identical, longer name</code></pre>
 <p>Both accept either a 64-character hex string (decoded directly) or any other
 string (hashed with blake3).</p>
+<h4 id="id-vs-unique_id"><a class="header" href="#id-vs-unique_id"><code>id!</code> vs <code>unique_id!</code></a></h4>
+<p>The <code>id!</code> macro is a short alias for <code>unique_id!</code> — both produce a compile-time
+<code>UniqueId</code> from a string literal. Use whichever reads more naturally.</p>
 <h3 id="display"><a class="header" href="#display">Display</a></h3>
 <ul>
 <li><code>Display</code> — short hex (first 5 bytes): <code>a1b2c3d4e5</code></li>

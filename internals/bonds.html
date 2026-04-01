@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2f41afc2.js";
+            window.path_to_searchindex_js = "../searchindex-c7fd538c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-1970cca6.js"></script>
@@ -200,9 +200,9 @@ group key before exchanging any group-internal state:</p>
     │             ⊕ group_key)             │
     │   · known bonds list                 │
     │                                      │
-    │                    verify proof       │
+    │                       verify proof   │
     │                                      │
-    │◄─── HandshakeEnd ───────────────────┤
+    │◄─── HandshakeEnd ────────────────────┤
     │     · proof (acceptor's)             │
     │     · known bonds list               │
     │                                      │
@@ -226,7 +226,22 @@ combined with the group key. This ensures:</p>
 <li>Propagates <strong>peer entry updates</strong> when discovery information changes.</li>
 <li>Announces <strong>new bonds</strong> (<code>BondFormed</code>) so peers learn about topology changes.</li>
 <li>Handles <strong>graceful departure</strong> when a peer is shutting down.</li>
+<li>Monitors <strong>ticket expiration</strong> when the group uses <code>.require_ticket()</code>.</li>
 </ul>
+<h4 id="ticket-expiration-timer"><a class="header" href="#ticket-expiration-timer">Ticket expiration timer</a></h4>
+<p>When a group requires ticket-based authentication, the bond worker tracks the
+<code>Expiration</code> returned by <code>TicketValidator::validate</code>. If the ticket has a
+finite expiration (<code>Expiration::At(time)</code>), the worker schedules a timer.
+When the timer fires:</p>
+<ol>
+<li>The peer’s current tickets are re-validated.</li>
+<li>If a new valid ticket is found (e.g. the peer refreshed their JWT),
+the timer is reset to the new expiration.</li>
+<li>If no valid ticket remains, the bond is terminated with <code>NotAllowed</code>.</li>
+</ol>
+<p>Peer entry updates (received via <code>PeerEntryUpdate</code> messages or discovery
+gossip) also trigger re-validation and reset the timer, so peers can
+seamlessly rotate credentials before they expire.</p>
 <h3 id="3-failure-and-reconnection"><a class="header" href="#3-failure-and-reconnection">3. Failure and reconnection</a></h3>
 <p>If heartbeats are missed beyond the configured threshold, the bond is
 considered failed and torn down. Both sides independently detect the failure.

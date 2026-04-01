@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2f41afc2.js";
+            window.path_to_searchindex_js = "../searchindex-c7fd538c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-1970cca6.js"></script>
@@ -360,16 +360,29 @@ each key to the correct builder (producer or consumer) automatically:</p>
 </thead>
 <tbody>
 <tr><td><code>require</code></td><td>Conditions for accepting a consumer or producer connection</td></tr>
+<tr><td><code>require_ticket</code></td><td>Expiration-aware ticket validator (see below)</td></tr>
 <tr><td><code>online_when</code></td><td>Conditions for the stream to be considered online</td></tr>
 </tbody>
 </table>
 </div>
-<p>Without a prefix, <code>online_when</code> applies to <strong>both</strong> sides. Use
-<code>producer online_when</code> or <code>consumer online_when</code> to target one:</p>
+<p>Without a prefix, ambiguous keys apply to <strong>both</strong> sides. Use
+<code>producer</code> or <code>consumer</code> prefixes to target one:</p>
 <pre><code class="language-rust ignore">stream!(pub PriceFeed = PriceUpdate,
     producer online_when: |c| c.minimum_of(2),
     consumer online_when: |c| c.minimum_of(1),
 );</code></pre>
+<h4 id="ticket-validator"><a class="header" href="#ticket-validator">Ticket validator</a></h4>
+<p>The <code>require_ticket</code> key accepts an expression that implements
+<code>TicketValidator</code>. It maps to <code>.with_ticket_validator(expr)</code> on the
+underlying builder. When the ticket expires, the connection is
+automatically terminated:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+
+declare::stream!(pub AuthFeed = PriceUpdate, "auth.feed",
+    require_ticket: MyJwtValidator::new(),
+);</code></pre>
+<p>See <a href="../discovery/tickets.html">Discovery &gt; Auth Tickets</a> for the
+<code>TicketValidator</code> trait and JWT examples.</p>
 <h3 id="usage"><a class="header" href="#usage">Usage</a></h3>
 <p>Call the trait methods on the generated struct to create producer or
 consumer instances:</p>

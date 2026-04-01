@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-2f41afc2.js";
+            window.path_to_searchindex_js = "../../searchindex-c7fd538c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-1970cca6.js"></script>
@@ -204,6 +204,7 @@
 </thead>
 <tbody>
 <tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Adds a consumer eligibility requirement (AND-composed)</td></tr>
+<tr><td><code>with_ticket_validator(validator)</code></td><td>None</td><td>Expiration-aware ticket validation (see below)</td></tr>
 <tr><td><code>online_when(conditions)</code></td><td><code>minimum_of(1)</code></td><td>Conditions under which the producer is online</td></tr>
 <tr><td><code>disconnect_lagging(bool)</code></td><td><code>true</code></td><td>Disconnect consumers that fall behind <code>buffer_size</code></td></tr>
 <tr><td><code>with_buffer_size(n)</code></td><td><code>1024</code></td><td>Internal channel buffer size</td></tr>
@@ -231,10 +232,41 @@ producer.send(datum).await?;</code></pre>
 }</code></pre>
 <p>All error variants return the unsent datum so you can retry or inspect it.</p>
 <h2 id="ticket-based-authentication"><a class="header" href="#ticket-based-authentication">Ticket-Based Authentication</a></h2>
-<p>Instead of (or in addition to) filtering by tags, you can require
-consumers to carry a valid auth ticket. Tickets are opaque credentials
-that consumers attach to their discovery entry and producers validate
-inside <code>require</code>:</p>
+<h3 id="using-with_ticket_validator-recommended"><a class="header" href="#using-with_ticket_validator-recommended">Using <code>with_ticket_validator</code> (recommended)</a></h3>
+<p>The <code>with_ticket_validator</code> method accepts a <code>TicketValidator</code>
+implementation that validates consumer tickets and returns their
+expiration. When a ticket expires, the producer <strong>proactively
+disconnects</strong> the consumer — no reconnection attempt is needed:</p>
+<pre><code class="language-rust ignore">use mosaik::primitives::{TicketValidator, Expiration, InvalidTicket};
+
+let producer = network.streams()
+    .producer::&lt;MyDatum&gt;()
+    .with_ticket_validator(MyJwtValidator::new())
+    .build()?;</code></pre>
+<p>The <code>TicketValidator</code> trait:</p>
+<pre><code class="language-rust ignore">pub trait TicketValidator: Send + Sync + 'static {
+    fn class(&amp;self) -&gt; UniqueId;
+    fn signature(&amp;self) -&gt; UniqueId;
+    fn validate(
+        &amp;self,
+        ticket: &amp;[u8],
+        peer: &amp;PeerEntry,
+    ) -&gt; Result&lt;Expiration, InvalidTicket&gt;;
+}</code></pre>
+<ul>
+<li><code>class()</code> — the <code>UniqueId</code> of the ticket class to look for.</li>
+<li><code>signature()</code> — a deterministic ID used in group identity derivation
+(derive from the class and any configuration such as the issuer).</li>
+<li><code>validate()</code> — checks the ticket bytes and peer entry, returning
+<code>Expiration::At(time)</code> for time-limited credentials or
+<code>Expiration::Never</code> for permanent ones.</li>
+</ul>
+<p>This is the same trait used by <a href="../groups.html">Groups</a> for bond
+authentication.</p>
+<h3 id="using-require-with-closures"><a class="header" href="#using-require-with-closures">Using <code>require</code> with closures</a></h3>
+<p>For simpler cases, you can validate tickets inside a <code>require</code>
+predicate using the <code>has_valid_ticket</code> helper. This approach does
+<strong>not</strong> track expiration — it only validates at connection time:</p>
 <pre><code class="language-rust ignore">use mosaik::{UniqueId, unique_id};
 
 const JWT_TICKET: UniqueId = unique_id!("my-app.jwt");
@@ -243,7 +275,6 @@ let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
     .require(move |peer| {
         peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
-            // Validate the JWT signature, expiration, subject, etc.
             validate_jwt(jwt_bytes, peer.id())
         })
     })

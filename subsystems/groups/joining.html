@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-2f41afc2.js";
+            window.path_to_searchindex_js = "../../searchindex-c7fd538c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-1970cca6.js"></script>
@@ -185,8 +185,10 @@
 <h2 id="builder-flow"><a class="header" href="#builder-flow">Builder Flow</a></h2>
 <pre><code>groups.with_key(key)
   ├── .join()                          // NoOp machine, InMemoryLogStore
+  ├── .require_ticket(validator)       // ticket-based peer auth (any stage)
   └── .with_state_machine(machine)
         ├── .join()                    // InMemoryLogStore (default)
+        ├── .require_ticket(validator)
         ├── .with_consensus_config(c)
         │     └── .join()
         └── .with_log_storage(store)
@@ -269,6 +271,72 @@ let config = ConsensusConfig::default().deprioritize_leadership();
 // Custom multiplier
 let config = ConsensusConfig::default().deprioritize_leadership_by(5);</code></pre>
 <p>This multiplies both <code>election_timeout</code> and <code>bootstrap_delay</code>, reducing the chance of becoming leader.</p>
+<h2 id="ticket-based-peer-authentication"><a class="header" href="#ticket-based-peer-authentication">Ticket-Based Peer Authentication</a></h2>
+<p>By default, any peer that knows the <code>GroupKey</code> can join a group. To add an
+extra layer of verification, call <code>.require_ticket()</code> with a
+<code>TicketValidator</code> implementation. During bonding, each peer’s discovery
+tickets are checked against the validator – only peers carrying a valid
+ticket of the expected class are allowed to form bonds.</p>
+<pre><code class="language-rust ignore">use mosaik::primitives::TicketValidator;
+use mosaik::discovery::PeerEntry;
+use mosaik::{UniqueId, id, Expiration, InvalidTicket};
+
+struct MyAuth;
+
+impl TicketValidator for MyAuth {
+    fn class(&amp;self) -&gt; UniqueId {
+        id!("my-app.group-auth")
+    }
+
+    fn signature(&amp;self) -&gt; UniqueId {
+        // Must be identical across all group members.
+        // Include any configuration that affects validation.
+        id!("my-app.group-auth.v1")
+    }
+
+    fn validate(
+        &amp;self,
+        ticket: &amp;[u8],
+        peer: &amp;PeerEntry,
+    ) -&gt; Result&lt;Expiration, InvalidTicket&gt; {
+        if ticket.is_empty() {
+            return Err(InvalidTicket);
+        }
+        // Application-specific validation logic.
+        // Return Expiration::Never for non-expiring tickets,
+        // or Expiration::At(datetime) for time-limited ones.
+        Ok(Expiration::Never)
+    }
+}
+
+let group = network.groups()
+    .with_key(key)
+    .with_state_machine(MyStateMachine::new())
+    .require_ticket(MyAuth)
+    .join();</code></pre>
+<h3 id="key-points"><a class="header" href="#key-points">Key points</a></h3>
+<ul>
+<li><strong>Affects <code>GroupId</code> derivation.</strong> The validator’s <code>signature()</code> is mixed
+into the group ID. All members must use the same validator configuration,
+or they will derive different group IDs and never bond.</li>
+<li><strong>Peers must attach tickets via discovery.</strong> Each peer calls
+<code>network.discovery().add_ticket(ticket)</code> with a <code>Ticket</code> whose <code>class</code>
+matches the validator’s <code>class()</code>. See
+<a href="../discovery/tickets.html">Auth Tickets</a> for details.</li>
+<li><strong>Revocation is automatic.</strong> If a bonded peer removes its ticket (or the
+ticket expires and fails re-validation), the bond is terminated.</li>
+<li><strong>Expiration-aware bonds.</strong> When <code>validate</code> returns
+<code>Ok(Expiration::At(time))</code>, the bond worker schedules a timer. When the
+ticket expires, the peer’s ticket is re-validated automatically. If
+re-validation fails, the bond is terminated with <code>NotAllowed</code>. Peers can
+refresh their ticket by publishing a new one via discovery — the bond
+worker picks up the updated expiration on the next peer entry update.</li>
+<li><strong><code>GroupKey</code> can be derived from the validator.</strong> Instead of manually
+generating a key, you can use <code>GroupKey::from(&amp;validator)</code> to derive a
+deterministic key from the validator’s <code>signature()</code>.</li>
+<li><strong>Accepts <code>Box&lt;dyn TicketValidator&gt;</code> and <code>Arc&lt;dyn TicketValidator&gt;</code></strong> in
+addition to concrete types.</li>
+</ul>
 <h2 id="idempotent-joins"><a class="header" href="#idempotent-joins">Idempotent Joins</a></h2>
 <p>If you <code>join()</code> a group whose <code>GroupId</code> already exists on this node, the existing <code>Group</code> handle is returned. No duplicate worker is spawned.</p>
 <h2 id="lifecycle"><a class="header" href="#lifecycle">Lifecycle</a></h2>

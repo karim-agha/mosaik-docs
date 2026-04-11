@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-feaedb2c.js";
+            window.path_to_searchindex_js = "searchindex-4bb1c37e.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f57b06e6.js"></script>
@@ -1907,17 +1907,17 @@ the <code>Expiration</code> with the longest validity among all matching tickets
 <code>InvalidTicket</code> if none pass. This is used internally by the groups
 subsystem for expiration-aware bond management.</p>
 <h2 id="example-jwt-authenticated-streams"><a class="header" href="#example-jwt-authenticated-streams">Example: JWT-authenticated streams</a></h2>
-<p>Mosaik ships a built-in [<code>JwtTicketValidator</code>] that covers the common
+<p>Mosaik ships a built-in [<code>Jwt</code>] that covers the common
 case of HMAC- or RSA-signed JWTs. No extra dependencies or custom trait
 implementations needed for the validating side.</p>
 <h3 id="1-set-up-the-validator"><a class="header" href="#1-set-up-the-validator">1. Set up the validator</a></h3>
 <pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
-use mosaik::tickets::jwt::JwtTicketValidator;
+use mosaik::tickets::jwt::Jwt;
 use sha2::Sha256;
 
 let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
 
-let validator = JwtTicketValidator::with_key(key)
+let validator = Jwt::with_key(key)
     .allow_issuer("my-app")   // require iss == "my-app"
     .allow_audience("stream"); // require aud == "stream" (optional)</code></pre>
 <p>Builder methods (all optional, all chainable):</p>
@@ -1940,10 +1940,10 @@ claims you specify. Tokens with overflowed or non-representable <code>exp</code>
 timestamps are rejected rather than silently treated as non-expiring.</p>
 <h3 id="2-consumer-attach-a-jwt-ticket"><a class="header" href="#2-consumer-attach-a-jwt-ticket">2. Consumer: attach a JWT ticket</a></h3>
 <p>The consumer signs a JWT and publishes it via discovery. The ticket
-class must be <code>JwtTicketValidator::CLASS</code>:</p>
+class must be <code>Jwt::CLASS</code>:</p>
 <pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
 use jwt::{Claims, RegisteredClaims, SignWithKey};
-use mosaik::{Ticket, tickets::jwt::JwtTicketValidator};
+use mosaik::{Ticket, tickets::jwt::Jwt};
 use sha2::Sha256;
 
 let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
@@ -1961,7 +1961,7 @@ let jwt_string = Claims::new(RegisteredClaims {
 .unwrap();
 
 let ticket = Ticket::new(
-    JwtTicketValidator::CLASS,
+    Jwt::CLASS,
     jwt_string.into(),
 );
 network.discovery().add_ticket(ticket);</code></pre>
@@ -1972,7 +1972,7 @@ when the consumer’s updated <code>PeerEntry</code> arrives.</p>
 It validates at connection time <strong>and</strong> proactively disconnects peers
 when their ticket expires. Call it multiple times to require multiple
 types of tickets — peers must satisfy all configured validators:</p>
-<pre><code class="language-rust ignore">let validator = JwtTicketValidator::with_key(key.clone())
+<pre><code class="language-rust ignore">let validator = Jwt::with_key(key.clone())
     .allow_issuer("my-app");
 
 // Producer side — validates incoming consumers
@@ -1987,16 +1987,16 @@ let consumer = network.streams()
     .require_ticket(validator.clone())
     .build();</code></pre>
 <p>The <code>stream!</code> macro supports this via <code>require_ticket</code>:</p>
-<pre><code class="language-rust ignore">use mosaik::{declare, tickets::jwt::JwtTicketValidator};
+<pre><code class="language-rust ignore">use mosaik::{declare, tickets::jwt::Jwt};
 
 declare::stream!(
     pub AuthFeed = MyDatum, "auth.feed",
-    require_ticket: JwtTicketValidator::with_key(key).allow_issuer("my-app"),
+    require_ticket: Jwt::with_key(key).allow_issuer("my-app"),
 );</code></pre>
 <p>See <a href="#the-stream-macro-recommended">Streams &gt; The <code>stream!</code> macro</a>
 for full macro syntax.</p>
 <h3 id="4-validate-tickets-on-groups"><a class="header" href="#4-validate-tickets-on-groups">4. Validate tickets on groups</a></h3>
-<pre><code class="language-rust ignore">let validator = JwtTicketValidator::with_key(key.clone())
+<pre><code class="language-rust ignore">let validator = Jwt::with_key(key.clone())
     .allow_issuer("my-app");
 
 let group = network.groups()
@@ -2010,12 +2010,12 @@ configuration automatically derive the same group key.</p>
 <h3 id="5-using-require-closures-alternative"><a class="header" href="#5-using-require-closures-alternative">5. Using <code>require</code> closures (alternative)</a></h3>
 <p>For quick prototyping without expiration tracking, use <code>has_valid_ticket</code>
 inside a <code>require</code> predicate:</p>
-<pre><code class="language-rust ignore">use mosaik::tickets::jwt::JwtTicketValidator;
+<pre><code class="language-rust ignore">use mosaik::tickets::jwt::Jwt;
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
     .require(move |peer| {
-        peer.has_valid_ticket(JwtTicketValidator::CLASS, |jwt_bytes| {
+        peer.has_valid_ticket(Jwt::CLASS, |jwt_bytes| {
             let jwt_str = std::str::from_utf8(jwt_bytes).unwrap_or("");
             // Custom signature check...
             verify_jwt(jwt_str, peer.id())
@@ -2034,7 +2034,7 @@ sign JWT + add_ticket() ─────► PeerEntry { tickets: [jwt] }
                                gossip / catalog sync
                                         │
                                         ▼
-                                                         JwtTicketValidator::validate()
+                                                         Jwt::validate()
                                                          ├─ sig ok, iss ok, sub ok
                                                          ├─ nbf ≤ now ≤ exp
                                                          ├─ valid → accept / bond
@@ -2084,7 +2084,7 @@ credentials expire – no reconnection round-trip required.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Feature</th><th>Built-in <code>JwtTicketValidator</code></th><th>Custom <code>TicketValidator</code></th><th><code>require</code> closure</th></tr>
+<tr><th>Feature</th><th>Built-in <code>Jwt</code></th><th>Custom <code>TicketValidator</code></th><th><code>require</code> closure</th></tr>
 </thead>
 <tbody>
 <tr><td>Proactive expiration disconnect</td><td>Yes</td><td>Yes</td><td>No (next reconnect)</td></tr>
@@ -2189,7 +2189,7 @@ different classes simultaneously. Producers can check for any
 combination of classes in their <code>require</code> predicate.</p>
 </li>
 <li>
-<p><strong>TDX attestation.</strong> Mosaik provides a built-in <code>TdxValidator</code> for
+<p><strong>TDX attestation.</strong> Mosaik provides a built-in <code>Tdx</code> validator for
 Intel TDX hardware attestation. See
 <a href="#intel-tdx">TEE &gt; TDX</a> for details.</p>
 </li>
@@ -3837,12 +3837,12 @@ they will derive different group IDs and will not see each other’s changes.</p
 </blockquote>
 <p>The <code>collection!</code> macro supports <code>require_ticket</code> directly:</p>
 <pre><code class="language-rust ignore">use mosaik::*;
-use mosaik::tdx::TdxValidator;
+use mosaik::tdx::Tdx;
 
 declare::collection!(
     pub SecureMap = mosaik::collections::Map&lt;String, String&gt;,
     "secure.store",
-    require_ticket: TdxValidator::new().require_mrtd("..."),
+    require_ticket: Tdx::new().require_mrtd("..."),
 );</code></pre>
 <p>See <a href="#auth-tickets">Auth Tickets</a> for the <code>TicketValidator</code> trait and
 <a href="#intel-tdx">TEE &gt; TDX</a> for TDX-specific validation.</p>
@@ -5316,7 +5316,7 @@ hardware cryptographically binds the attestation to the specific peer and networ
 and catalog sync mechanisms. No special protocol is needed — TEE attestation
 rides on the same infrastructure as JWT tokens and custom credentials.</p>
 <h3 id="3-peer-validation"><a class="header" href="#3-peer-validation">3. Peer validation</a></h3>
-<p>Other nodes configure a TEE validator (e.g., <code>TdxValidator</code>) on their streams,
+<p>Other nodes configure a TEE validator (e.g., <code>Tdx</code>) on their streams,
 groups, or collections. When a new peer is discovered, the validator:</p>
 <ol>
 <li>Deserializes the attestation ticket from the peer’s discovery entry</li>
@@ -5353,11 +5353,11 @@ mosaik = { version = "0.3", features = ["tdx-builder-alpine"] }
 <p>A stream that only accepts consumers running in a TDX enclave with a specific
 firmware measurement:</p>
 <pre><code class="language-rust ignore">use mosaik::*;
-use mosaik::tdx::TdxValidator;
+use mosaik::tdx::Tdx;
 
 declare::stream!(
     pub SecureStream = MyDatum, "secure.data",
-    consumer require_ticket: TdxValidator::new()
+    consumer require_ticket: Tdx::new()
         .require_mrtd("abcd...96hex..."),
 );
 
@@ -5370,12 +5370,12 @@ let mut consumer = SecureStream::consumer(&amp;network);</code></pre>
 <p>A collection that is only accessible by peers with the same TDX measurements as
 the local machine — no hardcoded hex strings needed:</p>
 <pre><code class="language-rust ignore">use mosaik::*;
-use mosaik::tdx::TdxValidator;
+use mosaik::tdx::Tdx;
 
 declare::collection!(
     pub SecureMap = mosaik::collections::Map&lt;String, String&gt;,
     "secure.map",
-    require_ticket: TdxValidator::new()
+    require_ticket: Tdx::new()
         .require_own_mrtd()
         .expect("TDX must be available")
         .require_own_rtmr2()
@@ -5492,22 +5492,22 @@ println!("RTMR2: {}", local.rtmr2());
 println!("RTMR3: {}", local.rtmr3());</code></pre>
 <p>This is also available through <code>network.tdx().measurements()</code>, which delegates
 to the same underlying call.</p>
-<h2 id="tdxvalidator"><a class="header" href="#tdxvalidator">TdxValidator</a></h2>
-<p><code>TdxValidator</code> implements the <code>TicketValidator</code> trait for TDX attestation. It
+<h2 id="tdx"><a class="header" href="#tdx">Tdx</a></h2>
+<p><code>Tdx</code> implements the <code>TicketValidator</code> trait for TDX attestation. It
 validates that a peer’s TDX Quote carries valid hardware signatures and that
 the measurements match specified criteria.</p>
 <h3 id="basic-usage"><a class="header" href="#basic-usage">Basic usage</a></h3>
-<pre><code class="language-rust ignore">use mosaik::tdx::TdxValidator;
+<pre><code class="language-rust ignore">use mosaik::tdx::Tdx;
 
 // Accept any valid TDX attestation (signatures must verify)
-let validator = TdxValidator::new();
+let validator = Tdx::new();
 
 // Require a specific MR_TD value
-let validator = TdxValidator::new()
+let validator = Tdx::new()
     .require_mrtd("91eb2b44d141d4ece09f0c75c2c53d247a3c68edd7fafe8a3520c942a604a407de03ae6dc5f87f27428b2538873118b7");
 
 // Require specific RTMRs
-let validator = TdxValidator::new()
+let validator = Tdx::new()
     .require_mrtd("...")
     .require_rtmr0("...")
     .require_rtmr2("...");</code></pre>
@@ -5539,7 +5539,7 @@ let validator = TdxValidator::new()
 hardware and return <code>Result</code>, so they require <code>?</code> or <code>.expect()</code> in the builder
 chain.</p>
 <h3 id="validation-checks"><a class="header" href="#validation-checks">Validation checks</a></h3>
-<p>When validating a peer’s ticket, <code>TdxValidator</code> performs these checks in order:</p>
+<p>When validating a peer’s ticket, <code>Tdx</code> performs these checks in order:</p>
 <ol>
 <li>Deserializes the ticket data into a <code>TdxTicket</code></li>
 <li>Parses and verifies the TDX Quote’s hardware signature</li>
@@ -5554,9 +5554,9 @@ chain.</p>
 <p>The <code>allow_variant</code> method lets you accept nodes with different software
 configurations. The baseline criteria must always be satisfied, and at least one
 variant must also match (if any are configured):</p>
-<pre><code class="language-rust ignore">use mosaik::tdx::{TdxValidator, MeasurementsCriteria};
+<pre><code class="language-rust ignore">use mosaik::tdx::{Tdx, MeasurementsCriteria};
 
-let validator = TdxValidator::new()
+let validator = Tdx::new()
     // All nodes must have this MR_TD
     .require_mrtd("aabb...")
     // Accept nodes running firmware version A
@@ -5573,19 +5573,19 @@ require peers to present measurements identical to the local machine’s — wit
 hardcoding hex strings. The values are read from TDX hardware at construction
 time and become part of the validator’s signature, so all nodes with the same
 measurements will derive the same group identity.</p>
-<pre><code class="language-rust ignore">use mosaik::tdx::TdxValidator;
+<pre><code class="language-rust ignore">use mosaik::tdx::Tdx;
 
 // Require all measurements to match (MR_TD + all RTMRs)
-let validator = TdxValidator::from_local()?;
+let validator = Tdx::from_local()?;
 
 // Require only specific registers to match
-let validator = TdxValidator::new()
+let validator = Tdx::new()
     .require_own_mrtd()?
     .require_own_rtmr2()?;
 
 // Mix local and explicit measurements
 let local = Measurements::local()?;
-let validator = TdxValidator::new()
+let validator = Tdx::new()
     .require_mrtd(local.mrtd())
     .require_rtmr1("abcd...");</code></pre>
 <p>This is particularly useful for collections and groups where the validator’s
@@ -5593,30 +5593,30 @@ signature is part of the group identity — every peer with the same TDX image
 will derive matching signatures automatically.</p>
 <h2 id="using-tdx-with-streams"><a class="header" href="#using-tdx-with-streams">Using TDX with Streams</a></h2>
 <pre><code class="language-rust ignore">use mosaik::*;
-use mosaik::tdx::TdxValidator;
+use mosaik::tdx::Tdx;
 
 // Via the stream! macro
 declare::stream!(
     pub SecureFeed = PriceUpdate, "secure.prices",
-    consumer require_ticket: TdxValidator::new()
+    consumer require_ticket: Tdx::new()
         .require_mrtd("..."),
 );
 
 // Via the builder API
 let producer = network.streams()
     .producer::&lt;PriceUpdate&gt;()
-    .require_ticket(TdxValidator::new().require_mrtd("..."))
+    .require_ticket(Tdx::new().require_mrtd("..."))
     .build()?;
 
 let consumer = network.streams()
     .consumer::&lt;PriceUpdate&gt;()
-    .require_ticket(TdxValidator::new().require_mrtd("..."))
+    .require_ticket(Tdx::new().require_mrtd("..."))
     .build();</code></pre>
 <h2 id="using-tdx-with-groups"><a class="header" href="#using-tdx-with-groups">Using TDX with Groups</a></h2>
-<pre><code class="language-rust ignore">use mosaik::tdx::TdxValidator;
+<pre><code class="language-rust ignore">use mosaik::tdx::Tdx;
 use mosaik::groups::GroupKey;
 
-let validator = TdxValidator::new().require_mrtd("...");
+let validator = Tdx::new().require_mrtd("...");
 
 let group = network.groups()
     .with_key(GroupKey::from(&amp;validator))
@@ -5625,20 +5625,20 @@ let group = network.groups()
     .join();</code></pre>
 <h2 id="using-tdx-with-collections"><a class="header" href="#using-tdx-with-collections">Using TDX with Collections</a></h2>
 <pre><code class="language-rust ignore">use mosaik::*;
-use mosaik::tdx::TdxValidator;
+use mosaik::tdx::Tdx;
 
 // Via the collection! macro with a hardcoded measurement
 declare::collection!(
     pub SecureStore = mosaik::collections::Map&lt;String, String&gt;,
     "secure.store",
-    require_ticket: TdxValidator::new().require_mrtd("..."),
+    require_ticket: Tdx::new().require_mrtd("..."),
 );
 
 // Via the collection! macro with local measurement matching
 declare::collection!(
     pub SecureStore = mosaik::collections::Map&lt;String, String&gt;,
     "secure.store",
-    require_ticket: TdxValidator::new()
+    require_ticket: Tdx::new()
         .require_own_mrtd()
         .expect("TDX must be available")
         .require_own_rtmr2()
@@ -5647,7 +5647,7 @@ declare::collection!(
 
 // Via CollectionConfig
 let config = CollectionConfig::default()
-    .require_ticket(TdxValidator::from_local()?);
+    .require_ticket(Tdx::from_local()?);
 
 let writer = mosaik::collections::Map::&lt;String, String&gt;::writer_with_config(
     &amp;network, store_id, config,
@@ -5677,7 +5677,7 @@ mosaik = { version = "0.3", features = ["tdx-builder-alpine"] }
 <li>Pre-computes the <code>MR_TD</code> measurement for the resulting image</li>
 <li>Generates a self-extracting launch script</li>
 </ol>
-<p>The pre-computed <code>MR_TD</code> can be used directly in <code>TdxValidator::require_mrtd()</code>
+<p>The pre-computed <code>MR_TD</code> can be used directly in <code>Tdx::require_mrtd()</code>
 for compile-time attestation binding — the binary that builds the image knows
 exactly what measurement to expect from the resulting TDX guest.</p>
 <h3 id="builder-options-3"><a class="header" href="#builder-options-3">Builder options</a></h3>

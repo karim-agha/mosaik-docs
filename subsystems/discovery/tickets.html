@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-feaedb2c.js";
+            window.path_to_searchindex_js = "../../searchindex-4bb1c37e.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -253,17 +253,17 @@ the <code>Expiration</code> with the longest validity among all matching tickets
 <code>InvalidTicket</code> if none pass. This is used internally by the groups
 subsystem for expiration-aware bond management.</p>
 <h2 id="example-jwt-authenticated-streams"><a class="header" href="#example-jwt-authenticated-streams">Example: JWT-authenticated streams</a></h2>
-<p>Mosaik ships a built-in [<code>JwtTicketValidator</code>] that covers the common
+<p>Mosaik ships a built-in [<code>Jwt</code>] that covers the common
 case of HMAC- or RSA-signed JWTs. No extra dependencies or custom trait
 implementations needed for the validating side.</p>
 <h3 id="1-set-up-the-validator"><a class="header" href="#1-set-up-the-validator">1. Set up the validator</a></h3>
 <pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
-use mosaik::tickets::jwt::JwtTicketValidator;
+use mosaik::tickets::jwt::Jwt;
 use sha2::Sha256;
 
 let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
 
-let validator = JwtTicketValidator::with_key(key)
+let validator = Jwt::with_key(key)
     .allow_issuer("my-app")   // require iss == "my-app"
     .allow_audience("stream"); // require aud == "stream" (optional)</code></pre>
 <p>Builder methods (all optional, all chainable):</p>
@@ -286,10 +286,10 @@ claims you specify. Tokens with overflowed or non-representable <code>exp</code>
 timestamps are rejected rather than silently treated as non-expiring.</p>
 <h3 id="2-consumer-attach-a-jwt-ticket"><a class="header" href="#2-consumer-attach-a-jwt-ticket">2. Consumer: attach a JWT ticket</a></h3>
 <p>The consumer signs a JWT and publishes it via discovery. The ticket
-class must be <code>JwtTicketValidator::CLASS</code>:</p>
+class must be <code>Jwt::CLASS</code>:</p>
 <pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
 use jwt::{Claims, RegisteredClaims, SignWithKey};
-use mosaik::{Ticket, tickets::jwt::JwtTicketValidator};
+use mosaik::{Ticket, tickets::jwt::Jwt};
 use sha2::Sha256;
 
 let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
@@ -307,7 +307,7 @@ let jwt_string = Claims::new(RegisteredClaims {
 .unwrap();
 
 let ticket = Ticket::new(
-    JwtTicketValidator::CLASS,
+    Jwt::CLASS,
     jwt_string.into(),
 );
 network.discovery().add_ticket(ticket);</code></pre>
@@ -318,7 +318,7 @@ when the consumer’s updated <code>PeerEntry</code> arrives.</p>
 It validates at connection time <strong>and</strong> proactively disconnects peers
 when their ticket expires. Call it multiple times to require multiple
 types of tickets — peers must satisfy all configured validators:</p>
-<pre><code class="language-rust ignore">let validator = JwtTicketValidator::with_key(key.clone())
+<pre><code class="language-rust ignore">let validator = Jwt::with_key(key.clone())
     .allow_issuer("my-app");
 
 // Producer side — validates incoming consumers
@@ -333,16 +333,16 @@ let consumer = network.streams()
     .require_ticket(validator.clone())
     .build();</code></pre>
 <p>The <code>stream!</code> macro supports this via <code>require_ticket</code>:</p>
-<pre><code class="language-rust ignore">use mosaik::{declare, tickets::jwt::JwtTicketValidator};
+<pre><code class="language-rust ignore">use mosaik::{declare, tickets::jwt::Jwt};
 
 declare::stream!(
     pub AuthFeed = MyDatum, "auth.feed",
-    require_ticket: JwtTicketValidator::with_key(key).allow_issuer("my-app"),
+    require_ticket: Jwt::with_key(key).allow_issuer("my-app"),
 );</code></pre>
 <p>See <a href="../streams.html#the-stream-macro-recommended">Streams &gt; The <code>stream!</code> macro</a>
 for full macro syntax.</p>
 <h3 id="4-validate-tickets-on-groups"><a class="header" href="#4-validate-tickets-on-groups">4. Validate tickets on groups</a></h3>
-<pre><code class="language-rust ignore">let validator = JwtTicketValidator::with_key(key.clone())
+<pre><code class="language-rust ignore">let validator = Jwt::with_key(key.clone())
     .allow_issuer("my-app");
 
 let group = network.groups()
@@ -356,12 +356,12 @@ configuration automatically derive the same group key.</p>
 <h3 id="5-using-require-closures-alternative"><a class="header" href="#5-using-require-closures-alternative">5. Using <code>require</code> closures (alternative)</a></h3>
 <p>For quick prototyping without expiration tracking, use <code>has_valid_ticket</code>
 inside a <code>require</code> predicate:</p>
-<pre><code class="language-rust ignore">use mosaik::tickets::jwt::JwtTicketValidator;
+<pre><code class="language-rust ignore">use mosaik::tickets::jwt::Jwt;
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
     .require(move |peer| {
-        peer.has_valid_ticket(JwtTicketValidator::CLASS, |jwt_bytes| {
+        peer.has_valid_ticket(Jwt::CLASS, |jwt_bytes| {
             let jwt_str = std::str::from_utf8(jwt_bytes).unwrap_or("");
             // Custom signature check...
             verify_jwt(jwt_str, peer.id())
@@ -380,7 +380,7 @@ sign JWT + add_ticket() ─────► PeerEntry { tickets: [jwt] }
                                gossip / catalog sync
                                         │
                                         ▼
-                                                         JwtTicketValidator::validate()
+                                                         Jwt::validate()
                                                          ├─ sig ok, iss ok, sub ok
                                                          ├─ nbf ≤ now ≤ exp
                                                          ├─ valid → accept / bond
@@ -430,7 +430,7 @@ credentials expire – no reconnection round-trip required.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Feature</th><th>Built-in <code>JwtTicketValidator</code></th><th>Custom <code>TicketValidator</code></th><th><code>require</code> closure</th></tr>
+<tr><th>Feature</th><th>Built-in <code>Jwt</code></th><th>Custom <code>TicketValidator</code></th><th><code>require</code> closure</th></tr>
 </thead>
 <tbody>
 <tr><td>Proactive expiration disconnect</td><td>Yes</td><td>Yes</td><td>No (next reconnect)</td></tr>
@@ -535,7 +535,7 @@ different classes simultaneously. Producers can check for any
 combination of classes in their <code>require</code> predicate.</p>
 </li>
 <li>
-<p><strong>TDX attestation.</strong> Mosaik provides a built-in <code>TdxValidator</code> for
+<p><strong>TDX attestation.</strong> Mosaik provides a built-in <code>Tdx</code> validator for
 Intel TDX hardware attestation. See
 <a href="../tee/tdx.html">TEE &gt; TDX</a> for details.</p>
 </li>

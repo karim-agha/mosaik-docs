@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-feaedb2c.js";
+            window.path_to_searchindex_js = "../searchindex-4bb1c37e.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f57b06e6.js"></script>
@@ -249,7 +249,7 @@ hardware cryptographically binds the attestation to the specific peer and networ
 and catalog sync mechanisms. No special protocol is needed — TEE attestation
 rides on the same infrastructure as JWT tokens and custom credentials.</p>
 <h3 id="3-peer-validation"><a class="header" href="#3-peer-validation">3. Peer validation</a></h3>
-<p>Other nodes configure a TEE validator (e.g., <code>TdxValidator</code>) on their streams,
+<p>Other nodes configure a TEE validator (e.g., <code>Tdx</code>) on their streams,
 groups, or collections. When a new peer is discovered, the validator:</p>
 <ol>
 <li>Deserializes the attestation ticket from the peer’s discovery entry</li>
@@ -286,11 +286,11 @@ mosaik = { version = "0.3", features = ["tdx-builder-alpine"] }
 <p>A stream that only accepts consumers running in a TDX enclave with a specific
 firmware measurement:</p>
 <pre><code class="language-rust ignore">use mosaik::*;
-use mosaik::tdx::TdxValidator;
+use mosaik::tdx::Tdx;
 
 declare::stream!(
     pub SecureStream = MyDatum, "secure.data",
-    consumer require_ticket: TdxValidator::new()
+    consumer require_ticket: Tdx::new()
         .require_mrtd("abcd...96hex..."),
 );
 
@@ -303,12 +303,12 @@ let mut consumer = SecureStream::consumer(&amp;network);</code></pre>
 <p>A collection that is only accessible by peers with the same TDX measurements as
 the local machine — no hardcoded hex strings needed:</p>
 <pre><code class="language-rust ignore">use mosaik::*;
-use mosaik::tdx::TdxValidator;
+use mosaik::tdx::Tdx;
 
 declare::collection!(
     pub SecureMap = mosaik::collections::Map&lt;String, String&gt;,
     "secure.map",
-    require_ticket: TdxValidator::new()
+    require_ticket: Tdx::new()
         .require_own_mrtd()
         .expect("TDX must be available")
         .require_own_rtmr2()

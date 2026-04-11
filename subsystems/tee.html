@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Building a Bootstrap Node - Mosaik</title>
+        <title>Trusted Execution Environments - Mosaik</title>
 
 
         <!-- Custom HTML head -->
@@ -146,7 +146,7 @@
                         <a href="https://github.com/flashbots/mosaik" title="Git repository" aria-label="Git repository">
                             <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
                         </a>
-                        <a href="https://github.com/flashbots/mosaik/edit/main/book/src/tutorials/bootstrap.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/flashbots/mosaik/edit/main/book/src/subsystems/tee.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
                         </a>
 
@@ -180,165 +180,153 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="building-a-bootstrap-node"><a class="header" href="#building-a-bootstrap-node">Building a Bootstrap Node</a></h1>
-<p>This tutorial walks through the <a href="https://github.com/flashbots/mosaik/blob/main/examples/bootstrap.rs">bootstrap example</a> — a ready-to-use bootstrap node for any mosaik network.</p>
-<h2 id="what-is-a-bootstrap-node"><a class="header" href="#what-is-a-bootstrap-node">What Is a Bootstrap Node?</a></h2>
-<p>A bootstrap node is the first peer that other nodes connect to when joining a network. It serves as the initial discovery point — once a new node connects to a bootstrap peer, the gossip protocol takes over and the joining node learns about all other peers.</p>
-<p>Bootstrap nodes are typically:</p>
+                        <h1 id="trusted-execution-environments"><a class="header" href="#trusted-execution-environments">Trusted Execution Environments</a></h1>
+<p>Mosaik provides first-class support for <strong>Trusted Execution Environments (TEEs)</strong>,
+enabling hardware-attested identity and access control across the network. TEE
+support is built on top of the existing <a href="discovery/tickets.html">Auth Tickets</a>
+system — nodes running inside a TEE generate cryptographic attestation tickets
+that other nodes can validate before establishing connections.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>In a TEE-enabled mosaik network, nodes can:</p>
+<ol>
+<li><strong>Generate attestation tickets</strong> — a node running inside a TEE produces a
+hardware-signed attestation that proves its software identity (measurements)
+and binds it to its mosaik peer identity and network.</li>
+<li><strong>Publish attestation via discovery</strong> — the attestation ticket is attached to
+the node’s discovery entry and propagated through gossip, just like any other
+ticket.</li>
+<li><strong>Validate peers</strong> — producers, consumers, and groups can require that
+connecting peers carry valid TEE attestation tickets matching specific
+measurement criteria.</li>
+</ol>
+<p>This integrates seamlessly with mosaik’s existing <code>TicketValidator</code> trait and
+<code>require_ticket</code> API — TEE validators are configured the same way as JWT or
+custom validators, but the validation checks hardware-signed attestation quotes
+instead of software-signed tokens.</p>
+<h2 id="supported-tee-platforms"><a class="header" href="#supported-tee-platforms">Supported TEE Platforms</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Platform</th><th>Feature flag</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="tee/tdx.html">Intel TDX</a> (Trust Domain Extensions)</td><td><code>tdx</code></td><td>Supported</td></tr>
+<tr><td>AMD SEV-SNP</td><td>—</td><td>Planned</td></tr>
+<tr><td>ARM CCA</td><td>—</td><td>Planned</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="architecture"><a class="header" href="#architecture">Architecture</a></h2>
+<pre><code class="language-text">┌──────────────────────────────────────────────────────────────┐
+│                        TEE Node                              │
+│                                                              │
+│  ┌────────────────┐    ┌──────────────────────────────────┐  │
+│  │  TEE Hardware  │    │         Mosaik Network           │  │
+│  │  (TDX / SNP)   │    │                                  │  │
+│  │                │    │  Streams ─── require_ticket(v)   │  │
+│  │  quote ───────────► │  Groups ──── require_ticket(v)   │  │
+│  │  measurements  │    │  Collections─ require_ticket(v)  │  │
+│  │                │    │                                  │  │
+│  └────────────────┘    └──────────────────────────────────┘  │
+│                                                              │
+│  attestation ticket ──► Discovery gossip ──► remote peers    │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<h3 id="1-attestation-ticket-generation"><a class="header" href="#1-attestation-ticket-generation">1. Attestation ticket generation</a></h3>
+<p>A node running inside a TEE calls <code>network.tdx().ticket()</code> (or the equivalent
+for other platforms) to generate an attestation ticket. The ticket contains:</p>
 <ul>
-<li><strong>Long-lived</strong> — they run continuously</li>
-<li><strong>Stable identity</strong> — they use a fixed secret key so their address doesn’t change across restarts</li>
-<li><strong>Well-known</strong> — their address is configured as a bootstrap peer by other nodes</li>
+<li>The raw hardware attestation quote (e.g., a TDX Quote signed by the CPU)</li>
+<li>Extra data binding the attestation to the mosaik peer identity, network, and
+timestamp</li>
 </ul>
-<p>A bootstrap node doesn’t need any special code — it’s just a regular mosaik node that stays online. The <a href="https://github.com/flashbots/mosaik/blob/main/examples/bootstrap.rs">bootstrap example</a> can be used in production as a <strong>universal bootstrap node</strong> for any mosaik network. The example adds CLI configuration with <code>clap</code>.</p>
-<h2 id="project-setup"><a class="header" href="#project-setup">Project Setup</a></h2>
-<p>The bootstrap example is a single file at <code>examples/bootstrap.rs</code>. It uses these dependencies:</p>
+<p>The quote’s <code>report_data</code> field contains a hash of the extra data, so the
+hardware cryptographically binds the attestation to the specific peer and network.</p>
+<h3 id="2-discovery-propagation"><a class="header" href="#2-discovery-propagation">2. Discovery propagation</a></h3>
+<p>The attestation ticket is added to the node’s discovery entry via
+<code>network.tdx().install_own_ticket()</code> and propagated through the normal gossip
+and catalog sync mechanisms. No special protocol is needed — TEE attestation
+rides on the same infrastructure as JWT tokens and custom credentials.</p>
+<h3 id="3-peer-validation"><a class="header" href="#3-peer-validation">3. Peer validation</a></h3>
+<p>Other nodes configure a TEE validator (e.g., <code>TdxValidator</code>) on their streams,
+groups, or collections. When a new peer is discovered, the validator:</p>
+<ol>
+<li>Deserializes the attestation ticket from the peer’s discovery entry</li>
+<li>Verifies the hardware signature on the quote</li>
+<li>Checks that the quote’s measurements (MR_TD, RTMRs) match the expected values</li>
+<li>Verifies that the quote is bound to the correct peer identity and network</li>
+<li>Returns the ticket’s expiration for automatic connection lifecycle management</li>
+</ol>
+<h2 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h2>
+<p>TEE support is gated behind feature flags to avoid pulling in platform-specific
+dependencies when not needed:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tee</code></td><td>Base TEE support (no platform-specific functionality)</td></tr>
+<tr><td><code>tdx</code></td><td>Intel TDX attestation and validation</td></tr>
+<tr><td><code>tdx-builder</code></td><td>TDX image builder infrastructure</td></tr>
+<tr><td><code>tdx-builder-alpine</code></td><td>Alpine Linux-based TDX image builder</td></tr>
+<tr><td><code>tdx-builder-ubuntu</code></td><td>Ubuntu-based TDX image builder (planned)</td></tr>
+<tr><td><code>tdx-builder-all</code></td><td>All TDX image builders</td></tr>
+</tbody>
+</table>
+</div>
 <pre><code class="language-toml">[dependencies]
-mosaik = "0.2"
-tokio = { version = "1", features = ["full"] }
-clap = { version = "4", features = ["derive"] }
-tracing = "0.1"
-tracing-subscriber = "0.3"
-anyhow = "1"
+mosaik = { version = "0.3", features = ["tdx"] }
+
+[build-dependencies]
+mosaik = { version = "0.3", features = ["tdx-builder-alpine"] }
 </code></pre>
-<h2 id="the-cli-interface"><a class="header" href="#the-cli-interface">The CLI Interface</a></h2>
-<p>The example uses <code>clap</code> derive to define command-line options:</p>
-<pre><code class="language-rust ignore">use clap::{ArgAction, Parser};
-use mosaik::*;
+<h2 id="quick-example"><a class="header" href="#quick-example">Quick Example</a></h2>
+<p>A stream that only accepts consumers running in a TDX enclave with a specific
+firmware measurement:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+use mosaik::tdx::TdxValidator;
 
-#[derive(Debug, Parser)]
-struct Opts {
-    /// The secret key for stable identity across restarts
-    #[clap(short, long, env = "MOSAIK_BOOTSTRAP_SECRET")]
-    secret: Option&lt;SecretKey&gt;,
+declare::stream!(
+    pub SecureStream = MyDatum, "secure.data",
+    consumer require_ticket: TdxValidator::new()
+        .require_mrtd("abcd...96hex..."),
+);
 
-    /// The network ID (hex string or seed that gets hashed)
-    #[clap(short, long, env = "MOSAIK_BOOTSTRAP_NETWORK_ID")]
-    network_id: Option&lt;NetworkId&gt;,
+// Producer (outside TEE) — validates consumers
+let mut producer = SecureStream::producer(&amp;network);
 
-    /// Other bootstrap nodes to connect to on startup
-    #[clap(short, long, env = "MOSAIK_BOOTSTRAP_PEERS")]
-    peers: Vec&lt;PeerId&gt;,
+// Consumer (inside TEE) — generates and installs attestation
+network.tdx().install_own_ticket()?;
+let mut consumer = SecureStream::consumer(&amp;network);</code></pre>
+<p>A collection that is only accessible by peers with the same TDX measurements as
+the local machine — no hardcoded hex strings needed:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+use mosaik::tdx::TdxValidator;
 
-    /// Tags to advertise (default: "bootstrap")
-    #[clap(short, long, default_value = "bootstrap",
-           env = "MOSAIK_BOOTSTRAP_TAGS")]
-    tags: Vec&lt;Tag&gt;,
-
-    /// Disable relay servers (node must be directly reachable)
-    #[clap(long, default_value_t = false)]
-    no_relay: bool,
-
-    /// Verbose output (-v debug, -vv trace)
-    #[clap(short, action = ArgAction::Count)]
-    verbose: u8,
-
-    /// Suppress all output
-    #[clap(short, long)]
-    quiet: bool,
-}</code></pre>
-<p>Every option also supports environment variables (<code>MOSAIK_BOOTSTRAP_*</code>), making it easy to configure in containers or systemd services.</p>
-<h2 id="secret-key-handling"><a class="header" href="#secret-key-handling">Secret Key Handling</a></h2>
-<p>The secret key determines the node’s <code>PeerId</code>. For a bootstrap node, a stable identity is essential so that other nodes can reliably find it:</p>
-<pre><code class="language-rust ignore">fn parse_secret_key(s: &amp;str) -&gt; Result&lt;SecretKey, Infallible&gt; {
-    let bytes = Digest::from(s);
-    Ok(SecretKey::from_bytes(bytes.as_bytes()))
-}</code></pre>
-<p>This parser accepts two formats:</p>
-<ul>
-<li><strong>64-character hex string</strong> — used directly as the secret key bytes</li>
-<li><strong>Any other string</strong> — treated as a seed, hashed with blake3 into a deterministic key</li>
-</ul>
-<p>So <code>--secret=my-bootstrap-1</code> always produces the same key, making deployment reproducible.</p>
-<h2 id="building-the-network"><a class="header" href="#building-the-network">Building the Network</a></h2>
-<p>The <code>main</code> function assembles the <code>Network</code> using the builder:</p>
-<pre><code class="language-rust ignore">#[tokio::main]
-async fn main() -&gt; anyhow::Result&lt;()&gt; {
-    let opts = Opts::parse();
-
-    let secret = opts.secret.unwrap_or_else(|| {
-        tracing::warn!("No secret key provided, generating random key");
-        SecretKey::generate(&amp;mut rand::rng())
-    });
-
-    let network_id = opts.network_id.unwrap_or_else(|| {
-        tracing::warn!("No network id provided, generating random network id");
-        NetworkId::random()
-    });
-
-    let mut builder = Network::builder(network_id)
-        .with_secret_key(secret)
-        .with_discovery(
-            discovery::Config::builder()
-                .with_tags(opts.tags.clone())
-                .with_bootstrap(opts.peers.clone()),
-        );
-
-    if opts.no_relay {
-        builder = builder.with_relay_mode(iroh::RelayMode::Disabled);
-    }
-
-    let network = builder.build().await?;
-
-    tracing::info!("Bootstrap node started");
-    tracing::info!("Public Id: {}", network.local().id());
-    tracing::info!("Network Id: {:?}", network.network_id());
-
-    // Stay alive forever
-    core::future::pending::&lt;()&gt;().await;
-    Ok(())
-}</code></pre>
-<p>Key points:</p>
-<ol>
-<li><strong><code>with_secret_key()</code></strong> — sets the stable identity</li>
-<li><strong><code>with_discovery()</code></strong> — configures tags and initial peers to dial</li>
-<li><strong><code>with_relay_mode(Disabled)</code></strong> — optional, for nodes with direct connectivity</li>
-<li><strong><code>core::future::pending()</code></strong> — keeps the process alive (the node runs in background tasks)</li>
-</ol>
-<h2 id="running-it"><a class="header" href="#running-it">Running It</a></h2>
-<pre><code class="language-bash"># Basic usage with a seed-based secret
-cargo run --example bootstrap -- \
-    --network-id=my-network \
-    --secret=my-bootstrap-secret
-
-# With environment variables
-MOSAIK_BOOTSTRAP_SECRET=my-secret \
-MOSAIK_BOOTSTRAP_NETWORK_ID=my-network \
-cargo run --example bootstrap
-
-# Multiple bootstrap nodes that know each other
-cargo run --example bootstrap -- \
-    --network-id=my-network \
-    --secret=node-1 \
-    --peers=&lt;peer-id-of-node-2&gt;
-</code></pre>
-<h2 id="using-the-bootstrap-node"><a class="header" href="#using-the-bootstrap-node">Using the Bootstrap Node</a></h2>
-<p>Other nodes reference the bootstrap node’s address when joining the network:</p>
-<pre><code class="language-rust ignore">let network = Network::builder(network_id)
-    .with_discovery(
-        discovery::Config::builder()
-            .with_bootstrap(bootstrap_addr)
-    )
-    .build()
-    .await?;</code></pre>
-<p>The joining node connects to the bootstrap peer, performs a full catalog sync, and then discovers all other nodes through gossip. From that point on, the joining node is a full participant — it doesn’t need the bootstrap node for ongoing operation.</p>
-<h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
-<ol>
-<li><strong>Bootstrap nodes are just regular nodes</strong> — no special server code needed</li>
-<li><strong>Stable identity via secret key</strong> — ensures the address doesn’t change across restarts</li>
-<li><strong>Tags for discoverability</strong> — the <code>"bootstrap"</code> tag lets other nodes identify bootstrap peers</li>
-<li><strong>Minimal configuration</strong> — a secret key and network ID are all that’s required</li>
-</ol>
+declare::collection!(
+    pub SecureMap = mosaik::collections::Map&lt;String, String&gt;,
+    "secure.map",
+    require_ticket: TdxValidator::new()
+        .require_own_mrtd()
+        .expect("TDX must be available")
+        .require_own_rtmr2()
+        .expect("TDX must be available"),
+);</code></pre>
+<p>See the <a href="tee/tdx.html">TDX</a> page for the full API reference and the
+<a href="https://github.com/flashbots/mosaik/tree/main/examples/tee/tdx">TDX example</a>
+for a complete working application.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../concepts/self-organization.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../subsystems/collections/writer-reader.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../tutorials/orderbook.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../subsystems/tee/tdx.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -348,11 +336,11 @@ cargo run --example bootstrap -- \
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../concepts/self-organization.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../subsystems/collections/writer-reader.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../tutorials/orderbook.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../subsystems/tee/tdx.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

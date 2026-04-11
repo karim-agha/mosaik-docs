@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c7fd538c.js";
+            window.path_to_searchindex_js = "../searchindex-feaedb2c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-1970cca6.js"></script>
+        <script src="../toc-f57b06e6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -281,6 +281,35 @@ parameters:</p>
 </div>
 <p>These traits are automatically implemented for any type that satisfies their
 bounds — you never need to implement them manually.</p>
+<h2 id="ticket-based-authentication"><a class="header" href="#ticket-based-authentication">Ticket-based authentication</a></h2>
+<p>Collections support ticket-based peer authentication through <code>CollectionConfig</code>.
+This adds an authentication requirement to the underlying Raft group — only
+peers carrying valid tickets can join and replicate data.</p>
+<pre><code class="language-rust ignore">use mosaik::CollectionConfig;
+use mosaik::collections::{Map, StoreId};
+
+let config = CollectionConfig::default()
+    .require_ticket(my_validator);
+
+let writer = Map::&lt;String, u64&gt;::writer_with_config(&amp;network, store_id, config);</code></pre>
+<p>Call <code>require_ticket</code> multiple times to require multiple types of tickets.
+Peers must satisfy <strong>all</strong> configured validators to participate.</p>
+<blockquote>
+<p><strong>Important:</strong> Ticket validators affect the derived group ID. All members
+of the collection must use the same validators in the same order, otherwise
+they will derive different group IDs and will not see each other’s changes.</p>
+</blockquote>
+<p>The <code>collection!</code> macro supports <code>require_ticket</code> directly:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+use mosaik::tdx::TdxValidator;
+
+declare::collection!(
+    pub SecureMap = mosaik::collections::Map&lt;String, String&gt;,
+    "secure.store",
+    require_ticket: TdxValidator::new().require_mrtd("..."),
+);</code></pre>
+<p>See <a href="discovery/tickets.html">Auth Tickets</a> for the <code>TicketValidator</code> trait and
+<a href="tee/tdx.html">TEE &gt; TDX</a> for TDX-specific validation.</p>
 <h2 id="storeid-and-group-identity"><a class="header" href="#storeid-and-group-identity">StoreId and group identity</a></h2>
 <p>Each collection derives its Raft group identity from:</p>
 <ol>
@@ -288,6 +317,7 @@ bounds — you never need to implement them manually.</p>
 <code>"mosaik_collections_once"</code>)</li>
 <li><strong>The <code>StoreId</code></strong> — a <code>UniqueId</code> you provide at construction time</li>
 <li><strong>The Rust type names</strong> of the type parameters</li>
+<li><strong>Ticket validator signatures</strong> (optional) — if <code>require_ticket</code> is configured</li>
 </ol>
 <p>This means <code>Map::&lt;String, u64&gt;::writer(&amp;net, id)</code> and
 <code>Map::&lt;u32, u64&gt;::writer(&amp;net, id)</code> will join <strong>different</strong> groups even with
@@ -378,11 +408,20 @@ definition:</p>
 compile time to produce the <code>StoreId</code>. If the string is exactly 64 hex
 characters, it is decoded directly instead of hashed. This matches the
 behavior of <code>unique_id!</code>.</p>
+<h4 id="baked-in-configuration"><a class="header" href="#baked-in-configuration">Baked-in configuration</a></h4>
+<p>The <code>collection!</code> macro supports <code>require_ticket</code> for ticket-based
+authentication:</p>
+<pre><code class="language-rust ignore">declare::collection!(
+    pub Prices = mosaik::collections::Map&lt;String, f64&gt;, "prices",
+    require_ticket: MyValidator::new(),
+);</code></pre>
+<p>Multiple <code>require_ticket</code> entries can be specified — peers must satisfy
+all of them.</p>
 <h3 id="when-to-use-the-macro-vs-direct-constructors"><a class="header" href="#when-to-use-the-macro-vs-direct-constructors">When to use the macro vs. direct constructors</a></h3>
 <p>Use the <code>collection!</code> macro when:</p>
 <ul>
 <li>Multiple modules or crates reference the same collection.</li>
-<li>You want a single source of truth for the store ID.</li>
+<li>You want a single source of truth for the store ID and auth config.</li>
 <li>You want compile-time checked reader/writer type aliases via
 <code>ReaderOf&lt;C&gt;</code> / <code>WriterOf&lt;C&gt;</code>.</li>
 </ul>

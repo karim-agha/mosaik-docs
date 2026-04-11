@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c7fd538c.js";
+            window.path_to_searchindex_js = "../searchindex-feaedb2c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-1970cca6.js"></script>
+        <script src="../toc-f57b06e6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -220,7 +220,7 @@ if group.is_leader() {
 <li><strong>Group key</strong> — the shared secret (<code>GroupKey</code>)</li>
 <li><strong>Consensus configuration</strong> — election timeouts, heartbeat intervals, etc.</li>
 <li><strong>State machine signature</strong> — the state machine’s <code>signature()</code> + state sync <code>signature()</code></li>
-<li><strong>Ticket validator signature</strong> (optional) — the <code>TicketValidator</code>’s <code>signature()</code>, if <code>.require_ticket()</code> is configured</li>
+<li><strong>Ticket validator signatures</strong> (optional) — the <code>signature()</code> of each configured <code>TicketValidator</code>, if <code>.require_ticket()</code> is used</li>
 </ol>
 <p>Any divergence in these values across nodes produces a different <code>GroupId</code>, preventing misconfigured nodes from bonding.</p>
 <pre><code class="language-rust ignore">// GroupId derivation (internal)
@@ -228,7 +228,7 @@ let id = key.secret().hashed()
     .derive(consensus.digest())
     .derive(state_machine.signature())
     .derive(state_machine.state_sync().signature());
-// If require_ticket() is set:
+// For each require_ticket() validator:
 //   id = id.derive(validator.signature());</code></pre>
 <h2 id="key-types"><a class="header" href="#key-types">Key Types</a></h2>
 <div class="table-wrapper">

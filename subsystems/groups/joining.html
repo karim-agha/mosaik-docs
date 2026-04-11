@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-c7fd538c.js";
+            window.path_to_searchindex_js = "../../searchindex-feaedb2c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-1970cca6.js"></script>
+        <script src="../../toc-f57b06e6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -316,9 +316,9 @@ let group = network.groups()
     .join();</code></pre>
 <h3 id="key-points"><a class="header" href="#key-points">Key points</a></h3>
 <ul>
-<li><strong>Affects <code>GroupId</code> derivation.</strong> The validator’s <code>signature()</code> is mixed
-into the group ID. All members must use the same validator configuration,
-or they will derive different group IDs and never bond.</li>
+<li><strong>Affects <code>GroupId</code> derivation.</strong> Each validator’s <code>signature()</code> is mixed
+into the group ID. All members must use the same validators in the same
+order, or they will derive different group IDs and never bond.</li>
 <li><strong>Peers must attach tickets via discovery.</strong> Each peer calls
 <code>network.discovery().add_ticket(ticket)</code> with a <code>Ticket</code> whose <code>class</code>
 matches the validator’s <code>class()</code>. See

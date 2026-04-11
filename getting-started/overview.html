@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c7fd538c.js";
+            window.path_to_searchindex_js = "../searchindex-feaedb2c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-1970cca6.js"></script>
+        <script src="../toc-f57b06e6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -195,6 +195,7 @@
 <tr><td><strong>Replicated collections</strong></td><td>Distributed <code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, and <code>PriorityQueue</code> with strong consistency</td></tr>
 <tr><td><strong>QUIC transport</strong></td><td>Built on <a href="https://github.com/n0-computer/iroh">iroh</a> for modern, encrypted P2P networking</td></tr>
 <tr><td><strong>Relay support</strong></td><td>Nodes behind NAT can communicate via relay servers with automatic hole-punching</td></tr>
+<tr><td><strong>TEE support</strong></td><td>First-class Intel TDX support for hardware-attested identity and access control</td></tr>
 </tbody>
 </table>
 </div>
@@ -221,6 +222,8 @@
 <p>Availability groups coordinated by a modified Raft consensus protocol. Nodes sharing a group key form a cluster, elect a leader, and replicate commands through a shared log. Custom state machines define application logic that runs deterministically on all group members.</p>
 <h3 id="collections"><a class="header" href="#collections">Collections</a></h3>
 <p>Higher-level replicated data structures built on Groups. Each collection (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, <code>PriorityQueue</code>) creates its own Raft group with a specialized state machine.</p>
+<h3 id="tee"><a class="header" href="#tee">TEE</a></h3>
+<p>Provides first-class support for Trusted Execution Environments. Nodes running inside a TEE (currently Intel TDX) can generate hardware-signed attestation tickets that prove their software identity. Other nodes validate these attestations before accepting connections — enabling cryptographic access control without out-of-band coordination.</p>
 <h2 id="design-decisions"><a class="header" href="#design-decisions">Design Decisions</a></h2>
 <h3 id="trusted-network-assumption"><a class="header" href="#trusted-network-assumption">Trusted Network Assumption</a></h3>
 <p>Mosaik is <strong>not</strong> Byzantine fault tolerant. All nodes are assumed to be honest and correctly implementing the protocol. This assumption enables:</p>

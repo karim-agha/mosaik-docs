@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-c7fd538c.js";
+            window.path_to_searchindex_js = "searchindex-feaedb2c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-1970cca6.js"></script>
+        <script src="toc-f57b06e6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -197,17 +197,18 @@
 <li><strong>Self-organizing.</strong> No central coordinator, no manual topology configuration. Nodes find each other and form the right connections.</li>
 <li><strong>Built on modern networking.</strong> Uses <a href="https://github.com/n0-computer/iroh">iroh</a> for QUIC-based peer-to-peer transport with relay support and hole-punching.</li>
 <li><strong>Composable primitives.</strong> Five subsystems (<code>Network</code>, <code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Collections</code>) compose to support a wide range of distributed application patterns.</li>
+<li><strong>First-class TEE support.</strong> Hardware-attested identity via Intel TDX (with AMD SEV-SNP and ARM CCA planned), enabling secure access control based on cryptographic proof of the software running on each node.</li>
 </ul>
 <h2 id="system-overview"><a class="header" href="#system-overview">System Overview</a></h2>
-<pre><code class="language-text">┌─────────────────────────────────────────────────┐
-│                   Network                       │
-│  (QUIC endpoint, identity, protocol routing)    │
-├──────────┬──────────┬──────────┬────────────────┤
-│ Discovery│ Streams  │  Groups  │  Collections   │
-│  gossip, │  typed   │   Raft   │  Map/Vec/Set/  │
-│  catalog │ pub/sub  │ consensus│  Cell/Once     │
-│          │          │  groups  │  PriorityQueue │
-└──────────┴──────────┴──────────┴────────────────┘
+<pre><code class="language-text">┌──────────────────────────────────────────────────────┐
+│                      Network                         │
+│  (QUIC endpoint, identity, protocol routing)         │
+├──────────┬──────────┬──────────┬──────────┬──────────┤
+│ Discovery│ Streams  │  Groups  │Collection│   TEE    │
+│  gossip, │  typed   │   Raft   │ Map/Vec/ │  TDX /   │
+│  catalog │ pub/sub  │ consensus│ Set/Cell │  SNP /   │
+│          │          │  groups  │ Once/PQ  │  CCA     │
+└──────────┴──────────┴──────────┴──────────┴──────────┘
 </code></pre>
 <ul>
 <li><strong>Network</strong> is the entry point. It manages the QUIC transport, node identity, and composes all subsystems.</li>
@@ -215,6 +216,7 @@
 <li><strong>Streams</strong> provides typed, async pub/sub channels. Any serializable Rust type can be streamed between nodes.</li>
 <li><strong>Groups</strong> implements Raft consensus for clusters of nodes that need shared state and leader election.</li>
 <li><strong>Collections</strong> builds on Groups to offer replicated data structures (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, <code>PriorityQueue</code>) that stay synchronized across nodes.</li>
+<li><strong>TEE</strong> provides first-class support for Trusted Execution Environments (Intel TDX, with AMD SEV-SNP and ARM CCA planned), enabling hardware-attested identity and access control across the network.</li>
 </ul>
 <h2 id="who-should-read-this-book"><a class="header" href="#who-should-read-this-book">Who Should Read This Book</a></h2>
 <p>This book serves two audiences:</p>
@@ -262,6 +264,7 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 <tr><td><strong>Replicated collections</strong></td><td>Distributed <code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, and <code>PriorityQueue</code> with strong consistency</td></tr>
 <tr><td><strong>QUIC transport</strong></td><td>Built on <a href="https://github.com/n0-computer/iroh">iroh</a> for modern, encrypted P2P networking</td></tr>
 <tr><td><strong>Relay support</strong></td><td>Nodes behind NAT can communicate via relay servers with automatic hole-punching</td></tr>
+<tr><td><strong>TEE support</strong></td><td>First-class Intel TDX support for hardware-attested identity and access control</td></tr>
 </tbody>
 </table>
 </div>
@@ -288,6 +291,8 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 <p>Availability groups coordinated by a modified Raft consensus protocol. Nodes sharing a group key form a cluster, elect a leader, and replicate commands through a shared log. Custom state machines define application logic that runs deterministically on all group members.</p>
 <h3 id="collections"><a class="header" href="#collections">Collections</a></h3>
 <p>Higher-level replicated data structures built on Groups. Each collection (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, <code>PriorityQueue</code>) creates its own Raft group with a specialized state machine.</p>
+<h3 id="tee"><a class="header" href="#tee">TEE</a></h3>
+<p>Provides first-class support for Trusted Execution Environments. Nodes running inside a TEE (currently Intel TDX) can generate hardware-signed attestation tickets that prove their software identity. Other nodes validate these attestations before accepting connections — enabling cryptographic access control without out-of-band coordination.</p>
 <h2 id="design-decisions"><a class="header" href="#design-decisions">Design Decisions</a></h2>
 <h3 id="trusted-network-assumption"><a class="header" href="#trusted-network-assumption">Trusted Network Assumption</a></h3>
 <p>Mosaik is <strong>not</strong> Byzantine fault tolerant. All nodes are assumed to be honest and correctly implementing the protocol. This assumption enables:</p>
@@ -309,13 +314,13 @@ async fn main() -&gt; anyhow::Result&lt;()&gt; {
 <h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
 <h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
 <ul>
-<li><strong>Rust ≥ 1.89</strong> (edition 2024)</li>
+<li><strong>Rust ≥ 1.93</strong> (edition 2024)</li>
 <li>A Unix-like OS (Linux, macOS) or Windows</li>
 </ul>
 <h2 id="add-to-your-project"><a class="header" href="#add-to-your-project">Add to Your Project</a></h2>
 <p>Add mosaik to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-mosaik = "0.2"
+mosaik = "0.3"
 </code></pre>
 <p>Mosaik pulls in its core dependencies automatically, including:</p>
 <ul>
@@ -1902,87 +1907,143 @@ the <code>Expiration</code> with the longest validity among all matching tickets
 <code>InvalidTicket</code> if none pass. This is used internally by the groups
 subsystem for expiration-aware bond management.</p>
 <h2 id="example-jwt-authenticated-streams"><a class="header" href="#example-jwt-authenticated-streams">Example: JWT-authenticated streams</a></h2>
-<p>A common pattern is to issue JWTs to authorized consumers. The producer
-then validates those JWTs inside its <code>require</code> predicate.</p>
-<h3 id="1-define-a-ticket-class"><a class="header" href="#1-define-a-ticket-class">1. Define a ticket class</a></h3>
-<p>Both producer and consumer agree on a <code>UniqueId</code> for the ticket class:</p>
-<pre><code class="language-rust ignore">use mosaik::{UniqueId, id};
+<p>Mosaik ships a built-in [<code>JwtTicketValidator</code>] that covers the common
+case of HMAC- or RSA-signed JWTs. No extra dependencies or custom trait
+implementations needed for the validating side.</p>
+<h3 id="1-set-up-the-validator"><a class="header" href="#1-set-up-the-validator">1. Set up the validator</a></h3>
+<pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
+use mosaik::tickets::jwt::JwtTicketValidator;
+use sha2::Sha256;
 
-const JWT_TICKET: UniqueId = id!("my-app.jwt");</code></pre>
+let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
+
+let validator = JwtTicketValidator::with_key(key)
+    .allow_issuer("my-app")   // require iss == "my-app"
+    .allow_audience("stream"); // require aud == "stream" (optional)</code></pre>
+<p>Builder methods (all optional, all chainable):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>.allow_issuer(s)</code></td><td>Require <code>iss</code> to match; call multiple times for OR logic</td></tr>
+<tr><td><code>.allow_audience(s)</code></td><td>Require <code>aud</code> to match; call multiple times for OR logic</td></tr>
+<tr><td><code>.require_subject(s)</code></td><td>Override default subject (default: peer id in lowercase hex)</td></tr>
+<tr><td><code>.require_claim(name, value)</code></td><td>Require a custom private claim; multiple calls compose as AND</td></tr>
+<tr><td><code>.allow_non_expiring()</code></td><td>Accept JWTs without an <code>exp</code> claim</td></tr>
+</tbody>
+</table>
+</div>
+<p>The validator checks <code>iss</code>, <code>sub</code>, <code>nbf</code>, <code>exp</code>, <code>aud</code>, and any custom
+claims you specify. Tokens with overflowed or non-representable <code>exp</code>
+timestamps are rejected rather than silently treated as non-expiring.</p>
 <h3 id="2-consumer-attach-a-jwt-ticket"><a class="header" href="#2-consumer-attach-a-jwt-ticket">2. Consumer: attach a JWT ticket</a></h3>
-<p>The consumer creates a JWT, wraps it in a <code>Ticket</code>, and publishes it
-via discovery:</p>
-<pre><code class="language-rust ignore">use mosaik::{Ticket, Bytes};
+<p>The consumer signs a JWT and publishes it via discovery. The ticket
+class must be <code>JwtTicketValidator::CLASS</code>:</p>
+<pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
+use jwt::{Claims, RegisteredClaims, SignWithKey};
+use mosaik::{Ticket, tickets::jwt::JwtTicketValidator};
+use sha2::Sha256;
 
-// (JWT creation uses any standard JWT library)
-let jwt_string: String = create_signed_jwt(&amp;consumer_peer_id);
+let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
 
-let ticket = Ticket::new(JWT_TICKET, Bytes::from(jwt_string));
+let jwt_string = Claims::new(RegisteredClaims {
+    issuer: Some("my-app".into()),
+    subject: Some(peer_id.to_string().to_lowercase()),
+    expiration: Some(
+        (chrono::Utc::now() + chrono::Duration::hours(1))
+            .timestamp() as u64,
+    ),
+    ..Default::default()
+})
+.sign_with_key(&amp;key)
+.unwrap();
+
+let ticket = Ticket::new(
+    JwtTicketValidator::CLASS,
+    jwt_string.into(),
+);
 network.discovery().add_ticket(ticket);</code></pre>
 <p>Because tickets propagate through gossip, the producer will see them
 when the consumer’s updated <code>PeerEntry</code> arrives.</p>
 <h3 id="3-validate-tickets-on-streams"><a class="header" href="#3-validate-tickets-on-streams">3. Validate tickets on streams</a></h3>
-<h4 id="using-with_ticket_validator-recommended"><a class="header" href="#using-with_ticket_validator-recommended">Using <code>with_ticket_validator</code> (recommended)</a></h4>
-<p>The <code>with_ticket_validator</code> method accepts a <code>TicketValidator</code>
-implementation. It validates tickets at connection time <strong>and</strong>
-proactively disconnects peers when their tickets expire:</p>
-<pre><code class="language-rust ignore">let producer = network.streams()
+<p>Use <code>require_ticket</code> on either the producer or consumer builder.
+It validates at connection time <strong>and</strong> proactively disconnects peers
+when their ticket expires. Call it multiple times to require multiple
+types of tickets — peers must satisfy all configured validators:</p>
+<pre><code class="language-rust ignore">let validator = JwtTicketValidator::with_key(key.clone())
+    .allow_issuer("my-app");
+
+// Producer side — validates incoming consumers
+let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .with_ticket_validator(MyJwtValidator::new())
+    .require_ticket(validator.clone())
     .build()?;
 
+// Consumer side — validates discovered producers
 let consumer = network.streams()
     .consumer::&lt;MyDatum&gt;()
-    .with_ticket_validator(MyJwtValidator::new())
+    .require_ticket(validator.clone())
     .build();</code></pre>
-<p>Both producer and consumer builders support <code>with_ticket_validator</code>.
-The <code>stream!</code> macro also supports this via the <code>require_ticket</code> key:</p>
-<pre><code class="language-rust ignore">use mosaik::*;
+<p>The <code>stream!</code> macro supports this via <code>require_ticket</code>:</p>
+<pre><code class="language-rust ignore">use mosaik::{declare, tickets::jwt::JwtTicketValidator};
 
-declare::stream!(pub AuthFeed = MyDatum, "auth.feed",
-    require_ticket: MyJwtValidator::new(),
+declare::stream!(
+    pub AuthFeed = MyDatum, "auth.feed",
+    require_ticket: JwtTicketValidator::with_key(key).allow_issuer("my-app"),
 );</code></pre>
 <p>See <a href="#the-stream-macro-recommended">Streams &gt; The <code>stream!</code> macro</a>
 for full macro syntax.</p>
-<h4 id="using-require-with-closures"><a class="header" href="#using-require-with-closures">Using <code>require</code> with closures</a></h4>
-<p>For simpler validation without expiration tracking, use
-<code>has_valid_ticket</code> inside a <code>require</code> predicate:</p>
-<pre><code class="language-rust ignore">let producer = network.streams()
+<h3 id="4-validate-tickets-on-groups"><a class="header" href="#4-validate-tickets-on-groups">4. Validate tickets on groups</a></h3>
+<pre><code class="language-rust ignore">let validator = JwtTicketValidator::with_key(key.clone())
+    .allow_issuer("my-app");
+
+let group = network.groups()
+    .with_key(GroupKey::from(&amp;validator))
+    .with_state_machine(MyStateMachine::default())
+    .require_ticket(validator)
+    .join();</code></pre>
+<p><code>GroupKey::from(&amp;validator)</code> derives the group identity from the
+validator’s <code>signature()</code>, so all nodes using the same validator
+configuration automatically derive the same group key.</p>
+<h3 id="5-using-require-closures-alternative"><a class="header" href="#5-using-require-closures-alternative">5. Using <code>require</code> closures (alternative)</a></h3>
+<p>For quick prototyping without expiration tracking, use <code>has_valid_ticket</code>
+inside a <code>require</code> predicate:</p>
+<pre><code class="language-rust ignore">use mosaik::tickets::jwt::JwtTicketValidator;
+
+let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
     .require(move |peer| {
-        peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
+        peer.has_valid_ticket(JwtTicketValidator::CLASS, |jwt_bytes| {
             let jwt_str = std::str::from_utf8(jwt_bytes).unwrap_or("");
-            // Verify signature, expiration, issuer, subject...
-            validate_jwt(jwt_str, peer.id())
+            // Custom signature check...
+            verify_jwt(jwt_str, peer.id())
         })
     })
     .build()?;</code></pre>
-<p>The predicate runs each time a consumer attempts to subscribe. If the
-consumer has no ticket of the right class, or if every ticket fails the
-validator, <code>has_valid_ticket</code> returns <code>false</code> and the subscription is
-rejected with a <code>NotAllowed</code> close code.</p>
-<h3 id="4-what-happens-at-runtime"><a class="header" href="#4-what-happens-at-runtime">4. What happens at runtime</a></h3>
-<pre><code>Consumer                        Discovery gossip                    Producer
-────────                        ───────────────                     ────────
-add_ticket(jwt)  ──────────►  PeerEntry { tickets: [jwt] }
+<p>The predicate runs each time a consumer attempts to subscribe. Expired
+tickets are only caught on the next reconnection attempt (no proactive
+disconnect).</p>
+<h3 id="6-what-happens-at-runtime"><a class="header" href="#6-what-happens-at-runtime">6. What happens at runtime</a></h3>
+<pre><code class="language-text">Consumer                        Discovery gossip              Producer / Group
+────────                        ───────────────               ────────────────
+sign JWT + add_ticket() ─────► PeerEntry { tickets: [jwt] }
                                         │
                                         ▼
                                gossip / catalog sync
                                         │
                                         ▼
-                                                              require(peer)
-                                                              └─ has_valid_ticket(...)
-                                                                 └─ validate jwt_bytes
-                                                                    ├─ valid → accept
-                                                                    └─ invalid → reject
+                                                         JwtTicketValidator::validate()
+                                                         ├─ sig ok, iss ok, sub ok
+                                                         ├─ nbf ≤ now ≤ exp
+                                                         ├─ valid → accept / bond
+                                                         └─ invalid → reject
 </code></pre>
-<p>Consumers that lack a valid ticket are never connected. When using
-<code>with_ticket_validator</code>, expired tickets trigger <strong>proactive
-disconnection</strong> on both producer and consumer sides — no reconnection
-attempt is needed. When using the closure-based <code>require</code> approach,
-expired tickets are rejected on subsequent reconnection attempts.
-For groups, expired tickets trigger proactive bond termination —
-see <a href="#joining-groups">Groups &gt; Joining</a>.</p>
+<p>When using <code>require_ticket</code>, the runtime
+schedules a disconnect at the moment <code>exp</code> is reached — no reconnection
+round-trip required. For groups, expired tickets trigger proactive bond
+termination — see <a href="#joining-groups">Groups &gt; Joining</a>.</p>
 <h2 id="the-ticketvalidator-trait"><a class="header" href="#the-ticketvalidator-trait">The <code>TicketValidator</code> trait</a></h2>
 <p>The <code>TicketValidator</code> trait provides structured, expiration-aware ticket
 validation. Unlike the closure-based <code>require</code> approach (which returns a
@@ -2023,99 +2084,52 @@ credentials expire – no reconnection round-trip required.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Feature</th><th><code>TicketValidator</code></th><th><code>require</code> closure</th></tr>
+<tr><th>Feature</th><th>Built-in <code>JwtTicketValidator</code></th><th>Custom <code>TicketValidator</code></th><th><code>require</code> closure</th></tr>
 </thead>
 <tbody>
-<tr><td>Proactive expiration disconnect</td><td>Yes</td><td>No (next reconnect)</td></tr>
-<tr><td>Group ID derivation</td><td>Yes (via <code>signature()</code>)</td><td>Not applicable</td></tr>
-<tr><td>Complexity</td><td>Implement a trait</td><td>Inline closure</td></tr>
-<tr><td>Best for</td><td>Production auth</td><td>Quick prototyping</td></tr>
+<tr><td>Proactive expiration disconnect</td><td>Yes</td><td>Yes</td><td>No (next reconnect)</td></tr>
+<tr><td>Group ID derivation</td><td>Yes (via <code>signature()</code>)</td><td>Yes (via <code>signature()</code>)</td><td>Not applicable</td></tr>
+<tr><td>Complexity</td><td>Zero — built in</td><td>Implement a trait</td><td>Inline closure</td></tr>
+<tr><td>Best for</td><td>JWT auth (HMAC / RSA / EC)</td><td>Custom credential types</td><td>Quick prototyping</td></tr>
 </tbody>
 </table>
 </div>
-<h3 id="example-jwt-ticket-validator"><a class="header" href="#example-jwt-ticket-validator">Example: JWT ticket validator</a></h3>
-<p>Below is a complete <code>TicketValidator</code> implementation using JWTs with
-HMAC-SHA256 signatures. It validates the issuer, subject (must match the
-peer’s ID), and expiration claims.</p>
-<p>Add these dependencies to your <code>Cargo.toml</code>:</p>
-<pre><code class="language-toml">[dependencies]
-hmac = "0.12"
-jwt = "0.16"
-sha2 = "0.10"
-chrono = "0.4"
-</code></pre>
-<p>Then implement the validator:</p>
-<pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
-use jwt::{RegisteredClaims, SignWithKey, VerifyWithKey};
-use mosaik::{
-    Bytes, Expiration, InvalidTicket, PeerId, Ticket,
-    TicketValidator, UniqueId, discovery::PeerEntry, id,
+<h2 id="custom-validators"><a class="header" href="#custom-validators">Custom validators</a></h2>
+<p>If you need a credential scheme other than JWTs, implement the
+<code>TicketValidator</code> trait directly. The three methods to implement:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>class()</code></td><td>Returns the <code>UniqueId</code> matching your ticket class. Only tickets of this class are passed to <code>validate()</code>.</td></tr>
+<tr><td><code>signature()</code></td><td>Deterministic ID derived from the validator type <strong>and</strong> config. All group members must produce the same signature.</td></tr>
+<tr><td><code>validate()</code></td><td>Receives raw ticket bytes and the <code>PeerEntry</code>. Returns <code>Ok(Expiration)</code> on success or <code>Err(InvalidTicket)</code> on failure.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-rust ignore">use mosaik::{
+    Expiration, InvalidTicket, UniqueId,
+    discovery::PeerEntry,
+    id,
+    tickets::TicketValidator,
 };
-use std::time::Duration;
 
-pub struct JwtTicketValidator {
-    key: Hmac&lt;sha2::Sha256&gt;,
-    issuer: String,
-    secret: String,
+pub struct MyValidator {
+    // your config fields
 }
 
-impl JwtTicketValidator {
-    pub fn new(issuer: &amp;str, secret: &amp;str) -&gt; Self {
-        Self {
-            key: Hmac::new_from_slice(secret.as_bytes()).unwrap(),
-            issuer: issuer.to_string(),
-            secret: secret.to_string(),
-        }
-    }
-
-    /// Create a signed JWT ticket for a specific peer.
-    pub fn make_ticket(
-        &amp;self,
-        peer_id: &amp;PeerId,
-        expiration: Expiration,
-    ) -&gt; Ticket {
-        Ticket::new(
-            self.class(),
-            jwt::Claims::new(RegisteredClaims {
-                issuer: Some(self.issuer.clone()),
-                subject: Some(peer_id.to_string()),
-                expiration: match expiration {
-                    Expiration::Never =&gt; None,
-                    Expiration::At(ts) =&gt; {
-                        Some(ts.timestamp() as u64)
-                    }
-                },
-                ..Default::default()
-            })
-            .sign_with_key(&amp;self.key)
-            .unwrap()
-            .into(),
-        )
-    }
-
-    /// Create a ticket that expires after the given duration.
-    pub fn make_ticket_expiring_in(
-        &amp;self,
-        peer_id: &amp;PeerId,
-        duration: Duration,
-    ) -&gt; Ticket {
-        let exp = chrono::Utc::now()
-            + chrono::Duration::from_std(duration).unwrap();
-        self.make_ticket(peer_id, Expiration::At(exp))
-    }
-}
-
-impl TicketValidator for JwtTicketValidator {
+impl TicketValidator for MyValidator {
     fn class(&amp;self) -&gt; UniqueId {
-        id!("my-app.jwt")
+        id!("my-app.credential")
     }
 
     fn signature(&amp;self) -&gt; UniqueId {
-        // Derive from class + issuer + secret so that validators
-        // with different configurations produce different signatures.
-        self.class()
-            .derive(&amp;self.issuer)
-            .derive(&amp;self.secret)
+        // Derive from class + any config that affects validation logic.
+        // Two validators with different configs must produce different
+        // signatures to avoid mismatched group IDs.
+        self.class().derive("v1")
     }
 
     fn validate(
@@ -2123,77 +2137,17 @@ impl TicketValidator for JwtTicketValidator {
         ticket: &amp;[u8],
         peer: &amp;PeerEntry,
     ) -&gt; Result&lt;Expiration, InvalidTicket&gt; {
-        let jwt_str =
-            core::str::from_utf8(ticket).map_err(|_| InvalidTicket)?;
-
-        let claims: jwt::Claims = jwt_str
-            .verify_with_key(&amp;self.key)
-            .map_err(|_| InvalidTicket)?;
-
-        let now = chrono::Utc::now().timestamp() as u64;
-        let exp = claims.registered.expiration;
-
-        // Reject if issuer doesn't match
-        if claims.registered.issuer.as_deref() != Some(&amp;self.issuer) {
-            return Err(InvalidTicket);
-        }
-
-        // Reject if subject doesn't match the peer's ID
-        if claims.registered.subject
-            != Some(peer.id().to_string())
-        {
-            return Err(InvalidTicket);
-        }
-
-        // Reject if already expired
-        if exp &lt;= Some(now) {
-            return Err(InvalidTicket);
-        }
-
-        // Convert the expiration claim to an Expiration value
-        Ok(exp
-            .and_then(|ts| {
-                chrono::DateTime::from_timestamp(ts as i64, 0)
-            })
-            .map_or(Expiration::Never, Expiration::At))
+        // Verify the credential bytes against `peer`.
+        // Return Ok(Expiration::At(ts)) for time-limited credentials,
+        // Ok(Expiration::Never) for permanent ones.
+        todo!()
     }
 }</code></pre>
-<h3 id="using-the-validator"><a class="header" href="#using-the-validator">Using the validator</a></h3>
-<p>With streams (trait-based):</p>
-<pre><code class="language-rust ignore">let validator = JwtTicketValidator::new("my-app", "my-secret");
-
-// Producer side -- validates incoming consumers
-let producer = network.streams()
+<p>Plug it in exactly like the built-in validator:</p>
+<pre><code class="language-rust ignore">let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .with_ticket_validator(
-        JwtTicketValidator::new("my-app", "my-secret"),
-    )
-    .build()?;
-
-// Consumer side -- validates discovered producers
-let consumer = network.streams()
-    .consumer::&lt;MyDatum&gt;()
-    .with_ticket_validator(
-        JwtTicketValidator::new("my-app", "my-secret"),
-    )
-    .build();</code></pre>
-<p>With groups:</p>
-<pre><code class="language-rust ignore">let group = network.groups()
-    .builder::&lt;MyStateMachine&gt;()
-    .require_ticket(
-        JwtTicketValidator::new("my-app", "my-secret"),
-    )
+    .require_ticket(MyValidator { /* ... */ })
     .build()?;</code></pre>
-<p>The consumer creates and attaches the ticket:</p>
-<pre><code class="language-rust ignore">let validator = JwtTicketValidator::new("my-app", "my-secret");
-let ticket = validator.make_ticket_expiring_in(
-    network.local().peer_id(),
-    Duration::from_secs(3600),
-);
-network.discovery().add_ticket(ticket);</code></pre>
-<p>When the JWT’s <code>exp</code> claim is reached, the runtime automatically
-terminates the connection (stream subscription or group bond) without
-waiting for a reconnection attempt.</p>
 <h2 id="design-notes"><a class="header" href="#design-notes">Design notes</a></h2>
 <ul>
 <li>
@@ -2224,9 +2178,20 @@ connections when tickets expire, rather than waiting for the next
 reconnection attempt.</p>
 </li>
 <li>
+<p><strong>Multiple validators.</strong> All subsystems (streams, groups, collections)
+support multiple <code>require_ticket</code> calls. Peers must satisfy <strong>all</strong>
+configured validators to be accepted. The runtime tracks the earliest
+expiration across all validators for automatic disconnect scheduling.</p>
+</li>
+<li>
 <p><strong>Multiple ticket classes.</strong> A single peer can carry tickets of
 different classes simultaneously. Producers can check for any
 combination of classes in their <code>require</code> predicate.</p>
+</li>
+<li>
+<p><strong>TDX attestation.</strong> Mosaik provides a built-in <code>TdxValidator</code> for
+Intel TDX hardware attestation. See
+<a href="#intel-tdx">TEE &gt; TDX</a> for details.</p>
 </li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -2481,7 +2446,7 @@ each key to the correct builder (producer or consumer) automatically:</p>
 </thead>
 <tbody>
 <tr><td><code>require</code></td><td>Conditions for accepting a consumer or producer connection</td></tr>
-<tr><td><code>require_ticket</code></td><td>Expiration-aware ticket validator (see below)</td></tr>
+<tr><td><code>require_ticket</code></td><td>Expiration-aware ticket validator (stackable; see below)</td></tr>
 <tr><td><code>online_when</code></td><td>Conditions for the stream to be considered online</td></tr>
 </tbody>
 </table>
@@ -2494,9 +2459,10 @@ each key to the correct builder (producer or consumer) automatically:</p>
 );</code></pre>
 <h4 id="ticket-validator"><a class="header" href="#ticket-validator">Ticket validator</a></h4>
 <p>The <code>require_ticket</code> key accepts an expression that implements
-<code>TicketValidator</code>. It maps to <code>.with_ticket_validator(expr)</code> on the
-underlying builder. When the ticket expires, the connection is
-automatically terminated:</p>
+<code>TicketValidator</code>. It maps to <code>.require_ticket(expr)</code> on the
+underlying builder. Multiple <code>require_ticket</code> entries can be specified
+(peers must satisfy all of them). When the earliest ticket expires, the
+connection is automatically terminated:</p>
 <pre><code class="language-rust ignore">use mosaik::*;
 
 declare::stream!(pub AuthFeed = PriceUpdate, "auth.feed",
@@ -2629,7 +2595,7 @@ constants.</p>
 </thead>
 <tbody>
 <tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Adds a consumer eligibility requirement (AND-composed)</td></tr>
-<tr><td><code>with_ticket_validator(validator)</code></td><td>None</td><td>Expiration-aware ticket validation (see below)</td></tr>
+<tr><td><code>require_ticket(validator)</code></td><td>None</td><td>Expiration-aware ticket validation (stackable; see below)</td></tr>
 <tr><td><code>online_when(conditions)</code></td><td><code>minimum_of(1)</code></td><td>Conditions under which the producer is online</td></tr>
 <tr><td><code>disconnect_lagging(bool)</code></td><td><code>true</code></td><td>Disconnect consumers that fall behind <code>buffer_size</code></td></tr>
 <tr><td><code>with_buffer_size(n)</code></td><td><code>1024</code></td><td>Internal channel buffer size</td></tr>
@@ -2657,16 +2623,18 @@ producer.send(datum).await?;</code></pre>
 }</code></pre>
 <p>All error variants return the unsent datum so you can retry or inspect it.</p>
 <h2 id="ticket-based-authentication"><a class="header" href="#ticket-based-authentication">Ticket-Based Authentication</a></h2>
-<h3 id="using-with_ticket_validator-recommended-1"><a class="header" href="#using-with_ticket_validator-recommended-1">Using <code>with_ticket_validator</code> (recommended)</a></h3>
-<p>The <code>with_ticket_validator</code> method accepts a <code>TicketValidator</code>
-implementation that validates consumer tickets and returns their
-expiration. When a ticket expires, the producer <strong>proactively
-disconnects</strong> the consumer — no reconnection attempt is needed:</p>
+<h3 id="using-require_ticket-recommended"><a class="header" href="#using-require_ticket-recommended">Using <code>require_ticket</code> (recommended)</a></h3>
+<p>The <code>require_ticket</code> method accepts a <code>TicketValidator</code> implementation
+that validates consumer tickets and returns their expiration. Call it
+multiple times to require multiple types of tickets — peers must satisfy
+all configured validators. When the earliest ticket expires, the producer
+<strong>proactively disconnects</strong> the consumer — no reconnection attempt is
+needed:</p>
 <pre><code class="language-rust ignore">use mosaik::primitives::{TicketValidator, Expiration, InvalidTicket};
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .with_ticket_validator(MyJwtValidator::new())
+    .require_ticket(MyJwtValidator::new())
     .build()?;</code></pre>
 <p>The <code>TicketValidator</code> trait:</p>
 <pre><code class="language-rust ignore">pub trait TicketValidator: Send + Sync + 'static {
@@ -2688,7 +2656,7 @@ let producer = network.streams()
 </ul>
 <p>This is the same trait used by <a href="#groups-1">Groups</a> for bond
 authentication.</p>
-<h3 id="using-require-with-closures-1"><a class="header" href="#using-require-with-closures-1">Using <code>require</code> with closures</a></h3>
+<h3 id="using-require-with-closures"><a class="header" href="#using-require-with-closures">Using <code>require</code> with closures</a></h3>
 <p>For simpler cases, you can validate tickets inside a <code>require</code>
 predicate using the <code>has_valid_ticket</code> helper. This approach does
 <strong>not</strong> track expiration — it only validates at connection time:</p>
@@ -2805,7 +2773,7 @@ while let Some(datum) = rx.recv().await {
 </thead>
 <tbody>
 <tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Peer eligibility predicate (AND-composed)</td></tr>
-<tr><td><code>with_ticket_validator(validator)</code></td><td>None</td><td>Expiration-aware ticket validation</td></tr>
+<tr><td><code>require_ticket(validator)</code></td><td>None</td><td>Expiration-aware ticket validation (stackable)</td></tr>
 <tr><td><code>with_criteria(criteria)</code></td><td><code>Criteria::default()</code></td><td>Data selection criteria sent to producers</td></tr>
 <tr><td><code>with_stream_id(id)</code></td><td><code>D::derived_stream_id()</code></td><td>Custom stream identity</td></tr>
 <tr><td><code>with_backoff(policy)</code></td><td>From <code>Streams</code> config</td><td>Backoff policy for reconnection retries</td></tr>
@@ -2849,16 +2817,17 @@ let consumer = network.streams()
     .build();</code></pre>
 <p>The predicate receives a <code>&amp;PeerEntry</code> and is evaluated each time a new producer is discovered.</p>
 <h3 id="ticket-based-authentication-1"><a class="header" href="#ticket-based-authentication-1">Ticket-Based Authentication</a></h3>
-<p>Use <code>with_ticket_validator</code> to only subscribe to producers that carry a
-valid ticket. When a producer’s ticket expires, the consumer
-<strong>automatically disconnects</strong>:</p>
+<p>Use <code>require_ticket</code> to only subscribe to producers that carry a valid
+ticket. Call it multiple times to require multiple types of tickets —
+producers must satisfy all configured validators. When the earliest
+ticket expires, the consumer <strong>automatically disconnects</strong>:</p>
 <pre><code class="language-rust ignore">let consumer = network.streams()
     .consumer::&lt;PriceUpdate&gt;()
-    .with_ticket_validator(MyJwtValidator::new())
+    .require_ticket(MyJwtValidator::new())
     .build();</code></pre>
 <p>The consumer validates each discovered producer’s tickets before
-attempting a connection. Producers without a valid ticket (or with an
-expired ticket) are skipped entirely. If a connected producer’s ticket
+attempting a connection. Producers without valid tickets (or with
+expired tickets) are skipped entirely. If a connected producer’s ticket
 expires mid-session, the consumer terminates the subscription.</p>
 <p>See <a href="#ticket-based-authentication">Producers &gt; Ticket-Based Authentication</a>
 for the <code>TicketValidator</code> trait definition, and
@@ -3101,7 +3070,7 @@ if group.is_leader() {
 <li><strong>Group key</strong> — the shared secret (<code>GroupKey</code>)</li>
 <li><strong>Consensus configuration</strong> — election timeouts, heartbeat intervals, etc.</li>
 <li><strong>State machine signature</strong> — the state machine’s <code>signature()</code> + state sync <code>signature()</code></li>
-<li><strong>Ticket validator signature</strong> (optional) — the <code>TicketValidator</code>’s <code>signature()</code>, if <code>.require_ticket()</code> is configured</li>
+<li><strong>Ticket validator signatures</strong> (optional) — the <code>signature()</code> of each configured <code>TicketValidator</code>, if <code>.require_ticket()</code> is used</li>
 </ol>
 <p>Any divergence in these values across nodes produces a different <code>GroupId</code>, preventing misconfigured nodes from bonding.</p>
 <pre><code class="language-rust ignore">// GroupId derivation (internal)
@@ -3109,7 +3078,7 @@ let id = key.secret().hashed()
     .derive(consensus.digest())
     .derive(state_machine.signature())
     .derive(state_machine.state_sync().signature());
-// If require_ticket() is set:
+// For each require_ticket() validator:
 //   id = id.derive(validator.signature());</code></pre>
 <h2 id="key-types"><a class="header" href="#key-types">Key Types</a></h2>
 <div class="table-wrapper">
@@ -3302,9 +3271,9 @@ let group = network.groups()
     .join();</code></pre>
 <h3 id="key-points"><a class="header" href="#key-points">Key points</a></h3>
 <ul>
-<li><strong>Affects <code>GroupId</code> derivation.</strong> The validator’s <code>signature()</code> is mixed
-into the group ID. All members must use the same validator configuration,
-or they will derive different group IDs and never bond.</li>
+<li><strong>Affects <code>GroupId</code> derivation.</strong> Each validator’s <code>signature()</code> is mixed
+into the group ID. All members must use the same validators in the same
+order, or they will derive different group IDs and never bond.</li>
 <li><strong>Peers must attach tickets via discovery.</strong> Each peer calls
 <code>network.discovery().add_ticket(ticket)</code> with a <code>Ticket</code> whose <code>class</code>
 matches the validator’s <code>class()</code>. See
@@ -3848,6 +3817,35 @@ parameters:</p>
 </div>
 <p>These traits are automatically implemented for any type that satisfies their
 bounds — you never need to implement them manually.</p>
+<h2 id="ticket-based-authentication-2"><a class="header" href="#ticket-based-authentication-2">Ticket-based authentication</a></h2>
+<p>Collections support ticket-based peer authentication through <code>CollectionConfig</code>.
+This adds an authentication requirement to the underlying Raft group — only
+peers carrying valid tickets can join and replicate data.</p>
+<pre><code class="language-rust ignore">use mosaik::CollectionConfig;
+use mosaik::collections::{Map, StoreId};
+
+let config = CollectionConfig::default()
+    .require_ticket(my_validator);
+
+let writer = Map::&lt;String, u64&gt;::writer_with_config(&amp;network, store_id, config);</code></pre>
+<p>Call <code>require_ticket</code> multiple times to require multiple types of tickets.
+Peers must satisfy <strong>all</strong> configured validators to participate.</p>
+<blockquote>
+<p><strong>Important:</strong> Ticket validators affect the derived group ID. All members
+of the collection must use the same validators in the same order, otherwise
+they will derive different group IDs and will not see each other’s changes.</p>
+</blockquote>
+<p>The <code>collection!</code> macro supports <code>require_ticket</code> directly:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+use mosaik::tdx::TdxValidator;
+
+declare::collection!(
+    pub SecureMap = mosaik::collections::Map&lt;String, String&gt;,
+    "secure.store",
+    require_ticket: TdxValidator::new().require_mrtd("..."),
+);</code></pre>
+<p>See <a href="#auth-tickets">Auth Tickets</a> for the <code>TicketValidator</code> trait and
+<a href="#intel-tdx">TEE &gt; TDX</a> for TDX-specific validation.</p>
 <h2 id="storeid-and-group-identity"><a class="header" href="#storeid-and-group-identity">StoreId and group identity</a></h2>
 <p>Each collection derives its Raft group identity from:</p>
 <ol>
@@ -3855,6 +3853,7 @@ bounds — you never need to implement them manually.</p>
 <code>"mosaik_collections_once"</code>)</li>
 <li><strong>The <code>StoreId</code></strong> — a <code>UniqueId</code> you provide at construction time</li>
 <li><strong>The Rust type names</strong> of the type parameters</li>
+<li><strong>Ticket validator signatures</strong> (optional) — if <code>require_ticket</code> is configured</li>
 </ol>
 <p>This means <code>Map::&lt;String, u64&gt;::writer(&amp;net, id)</code> and
 <code>Map::&lt;u32, u64&gt;::writer(&amp;net, id)</code> will join <strong>different</strong> groups even with
@@ -3945,11 +3944,20 @@ definition:</p>
 compile time to produce the <code>StoreId</code>. If the string is exactly 64 hex
 characters, it is decoded directly instead of hashed. This matches the
 behavior of <code>unique_id!</code>.</p>
+<h4 id="baked-in-configuration-1"><a class="header" href="#baked-in-configuration-1">Baked-in configuration</a></h4>
+<p>The <code>collection!</code> macro supports <code>require_ticket</code> for ticket-based
+authentication:</p>
+<pre><code class="language-rust ignore">declare::collection!(
+    pub Prices = mosaik::collections::Map&lt;String, f64&gt;, "prices",
+    require_ticket: MyValidator::new(),
+);</code></pre>
+<p>Multiple <code>require_ticket</code> entries can be specified — peers must satisfy
+all of them.</p>
 <h3 id="when-to-use-the-macro-vs-direct-constructors-1"><a class="header" href="#when-to-use-the-macro-vs-direct-constructors-1">When to use the macro vs. direct constructors</a></h3>
 <p>Use the <code>collection!</code> macro when:</p>
 <ul>
 <li>Multiple modules or crates reference the same collection.</li>
-<li>You want a single source of truth for the store ID.</li>
+<li>You want a single source of truth for the store ID and auth config.</li>
 <li>You want compile-time checked reader/writer type aliases via
 <code>ReaderOf&lt;C&gt;</code> / <code>WriterOf&lt;C&gt;</code>.</li>
 </ul>
@@ -5235,6 +5243,459 @@ map.insert("from-b".into(), 2).await?;
 <tr><td>The node needs to modify the collection</td><td>The node only observes state</td></tr>
 <tr><td>You want normal leadership election priority</td><td>You want to reduce leadership overhead</td></tr>
 <tr><td>The node is in the “hot path” for writes</td><td>The node is a monitoring/dashboard node</td></tr>
+</tbody>
+</table>
+</div>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="trusted-execution-environments"><a class="header" href="#trusted-execution-environments">Trusted Execution Environments</a></h1>
+<p>Mosaik provides first-class support for <strong>Trusted Execution Environments (TEEs)</strong>,
+enabling hardware-attested identity and access control across the network. TEE
+support is built on top of the existing <a href="#auth-tickets">Auth Tickets</a>
+system — nodes running inside a TEE generate cryptographic attestation tickets
+that other nodes can validate before establishing connections.</p>
+<h2 id="overview-5"><a class="header" href="#overview-5">Overview</a></h2>
+<p>In a TEE-enabled mosaik network, nodes can:</p>
+<ol>
+<li><strong>Generate attestation tickets</strong> — a node running inside a TEE produces a
+hardware-signed attestation that proves its software identity (measurements)
+and binds it to its mosaik peer identity and network.</li>
+<li><strong>Publish attestation via discovery</strong> — the attestation ticket is attached to
+the node’s discovery entry and propagated through gossip, just like any other
+ticket.</li>
+<li><strong>Validate peers</strong> — producers, consumers, and groups can require that
+connecting peers carry valid TEE attestation tickets matching specific
+measurement criteria.</li>
+</ol>
+<p>This integrates seamlessly with mosaik’s existing <code>TicketValidator</code> trait and
+<code>require_ticket</code> API — TEE validators are configured the same way as JWT or
+custom validators, but the validation checks hardware-signed attestation quotes
+instead of software-signed tokens.</p>
+<h2 id="supported-tee-platforms"><a class="header" href="#supported-tee-platforms">Supported TEE Platforms</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Platform</th><th>Feature flag</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#intel-tdx">Intel TDX</a> (Trust Domain Extensions)</td><td><code>tdx</code></td><td>Supported</td></tr>
+<tr><td>AMD SEV-SNP</td><td>—</td><td>Planned</td></tr>
+<tr><td>ARM CCA</td><td>—</td><td>Planned</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="architecture-2"><a class="header" href="#architecture-2">Architecture</a></h2>
+<pre><code class="language-text">┌──────────────────────────────────────────────────────────────┐
+│                        TEE Node                              │
+│                                                              │
+│  ┌────────────────┐    ┌──────────────────────────────────┐  │
+│  │  TEE Hardware  │    │         Mosaik Network           │  │
+│  │  (TDX / SNP)   │    │                                  │  │
+│  │                │    │  Streams ─── require_ticket(v)   │  │
+│  │  quote ───────────► │  Groups ──── require_ticket(v)   │  │
+│  │  measurements  │    │  Collections─ require_ticket(v)  │  │
+│  │                │    │                                  │  │
+│  └────────────────┘    └──────────────────────────────────┘  │
+│                                                              │
+│  attestation ticket ──► Discovery gossip ──► remote peers    │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+<h2 id="how-it-works-3"><a class="header" href="#how-it-works-3">How It Works</a></h2>
+<h3 id="1-attestation-ticket-generation"><a class="header" href="#1-attestation-ticket-generation">1. Attestation ticket generation</a></h3>
+<p>A node running inside a TEE calls <code>network.tdx().ticket()</code> (or the equivalent
+for other platforms) to generate an attestation ticket. The ticket contains:</p>
+<ul>
+<li>The raw hardware attestation quote (e.g., a TDX Quote signed by the CPU)</li>
+<li>Extra data binding the attestation to the mosaik peer identity, network, and
+timestamp</li>
+</ul>
+<p>The quote’s <code>report_data</code> field contains a hash of the extra data, so the
+hardware cryptographically binds the attestation to the specific peer and network.</p>
+<h3 id="2-discovery-propagation"><a class="header" href="#2-discovery-propagation">2. Discovery propagation</a></h3>
+<p>The attestation ticket is added to the node’s discovery entry via
+<code>network.tdx().install_own_ticket()</code> and propagated through the normal gossip
+and catalog sync mechanisms. No special protocol is needed — TEE attestation
+rides on the same infrastructure as JWT tokens and custom credentials.</p>
+<h3 id="3-peer-validation"><a class="header" href="#3-peer-validation">3. Peer validation</a></h3>
+<p>Other nodes configure a TEE validator (e.g., <code>TdxValidator</code>) on their streams,
+groups, or collections. When a new peer is discovered, the validator:</p>
+<ol>
+<li>Deserializes the attestation ticket from the peer’s discovery entry</li>
+<li>Verifies the hardware signature on the quote</li>
+<li>Checks that the quote’s measurements (MR_TD, RTMRs) match the expected values</li>
+<li>Verifies that the quote is bound to the correct peer identity and network</li>
+<li>Returns the ticket’s expiration for automatic connection lifecycle management</li>
+</ol>
+<h2 id="feature-flags-1"><a class="header" href="#feature-flags-1">Feature Flags</a></h2>
+<p>TEE support is gated behind feature flags to avoid pulling in platform-specific
+dependencies when not needed:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tee</code></td><td>Base TEE support (no platform-specific functionality)</td></tr>
+<tr><td><code>tdx</code></td><td>Intel TDX attestation and validation</td></tr>
+<tr><td><code>tdx-builder</code></td><td>TDX image builder infrastructure</td></tr>
+<tr><td><code>tdx-builder-alpine</code></td><td>Alpine Linux-based TDX image builder</td></tr>
+<tr><td><code>tdx-builder-ubuntu</code></td><td>Ubuntu-based TDX image builder (planned)</td></tr>
+<tr><td><code>tdx-builder-all</code></td><td>All TDX image builders</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-toml">[dependencies]
+mosaik = { version = "0.3", features = ["tdx"] }
+
+[build-dependencies]
+mosaik = { version = "0.3", features = ["tdx-builder-alpine"] }
+</code></pre>
+<h2 id="quick-example-1"><a class="header" href="#quick-example-1">Quick Example</a></h2>
+<p>A stream that only accepts consumers running in a TDX enclave with a specific
+firmware measurement:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+use mosaik::tdx::TdxValidator;
+
+declare::stream!(
+    pub SecureStream = MyDatum, "secure.data",
+    consumer require_ticket: TdxValidator::new()
+        .require_mrtd("abcd...96hex..."),
+);
+
+// Producer (outside TEE) — validates consumers
+let mut producer = SecureStream::producer(&amp;network);
+
+// Consumer (inside TEE) — generates and installs attestation
+network.tdx().install_own_ticket()?;
+let mut consumer = SecureStream::consumer(&amp;network);</code></pre>
+<p>A collection that is only accessible by peers with the same TDX measurements as
+the local machine — no hardcoded hex strings needed:</p>
+<pre><code class="language-rust ignore">use mosaik::*;
+use mosaik::tdx::TdxValidator;
+
+declare::collection!(
+    pub SecureMap = mosaik::collections::Map&lt;String, String&gt;,
+    "secure.map",
+    require_ticket: TdxValidator::new()
+        .require_own_mrtd()
+        .expect("TDX must be available")
+        .require_own_rtmr2()
+        .expect("TDX must be available"),
+);</code></pre>
+<p>See the <a href="#intel-tdx">TDX</a> page for the full API reference and the
+<a href="https://github.com/flashbots/mosaik/tree/main/examples/tee/tdx">TDX example</a>
+for a complete working application.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="intel-tdx"><a class="header" href="#intel-tdx">Intel TDX</a></h1>
+<p>Intel <strong>Trust Domain Extensions (TDX)</strong> is a hardware-based TEE technology that
+provides confidential computing at the virtual machine level. Mosaik’s TDX
+support lets nodes running inside a TDX Trust Domain generate attestation
+tickets and lets other nodes validate them against expected measurements.</p>
+<p>Enable TDX support with the <code>tdx</code> feature flag:</p>
+<pre><code class="language-toml">[dependencies]
+mosaik = { version = "0.3", features = ["tdx"] }
+</code></pre>
+<h2 id="network-extension"><a class="header" href="#network-extension">Network Extension</a></h2>
+<p>The <code>tdx</code> feature adds a <code>.tdx()</code> method to <code>Network</code> via the <code>NetworkTdxExt</code>
+trait:</p>
+<pre><code class="language-rust ignore">use mosaik::{Network, tdx::NetworkTdxExt};
+
+let network = Network::new("my-network".into()).await?;
+
+// Check if TDX hardware is available
+if network.tdx().available() {
+    // Generate and install an attestation ticket
+    network.tdx().install_own_ticket()?;
+}</code></pre>
+<h3 id="available-methods"><a class="header" href="#available-methods">Available Methods</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>available()</code></td><td>Returns <code>true</code> if TDX hardware is present and functional</td></tr>
+<tr><td><code>ticket()</code></td><td>Generates a non-expiring TDX attestation ticket</td></tr>
+<tr><td><code>ticket_with_expiration(exp)</code></td><td>Generates a ticket with a specific expiration</td></tr>
+<tr><td><code>install_own_ticket()</code></td><td>Generates a ticket and adds it to the node’s discovery entry</td></tr>
+<tr><td><code>measurements()</code></td><td>Returns all TDX measurements (MR_TD, RTMRs)</td></tr>
+<tr><td><code>mrtd()</code></td><td>Returns the MR_TD measurement</td></tr>
+<tr><td><code>rtmr0()</code> / <code>rtmr1()</code> / <code>rtmr2()</code> / <code>rtmr3()</code></td><td>Returns individual RTMR measurements</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="tdx-tickets"><a class="header" href="#tdx-tickets">TDX Tickets</a></h2>
+<p>A <code>TdxTicket</code> wraps a hardware-generated TDX Quote together with mosaik-specific
+extra data. The ticket structure:</p>
+<pre><code class="language-text">TdxTicket
+├── quote_bytes     Raw TDX Quote (hardware-signed attestation)
+└── extra
+    ├── peer_id     The mosaik PeerId of the attesting node
+    ├── network_id  The NetworkId the node belongs to
+    ├── started_at  When the node process started
+    ├── quoted_at   When the quote was generated
+    └── expiration  Ticket expiration policy
+</code></pre>
+<p>The TDX Quote’s <code>report_data</code> field contains a hash of the extra data, creating
+a cryptographic binding between the hardware attestation and the mosaik peer
+identity.</p>
+<h3 id="converting-between-ticket-types"><a class="header" href="#converting-between-ticket-types">Converting between ticket types</a></h3>
+<p><code>TdxTicket</code> converts to and from mosaik’s generic <code>Ticket</code> type:</p>
+<pre><code class="language-rust ignore">// Generate a TDX-specific ticket
+let generic_ticket: Ticket = network.tdx().ticket()?;
+
+// Parse a generic ticket back into a TdxTicket
+let tdx_ticket: TdxTicket = generic_ticket.try_into()?;
+
+// Access TDX-specific fields
+println!("Peer: {}", tdx_ticket.peer_id());
+println!("MR_TD: {}", tdx_ticket.measurements().mrtd());
+println!("Quote verified: {}", tdx_ticket.quote().verify().is_ok());</code></pre>
+<p>Tickets are compressed with zstd before serialization to reduce gossip overhead.</p>
+<h2 id="measurements"><a class="header" href="#measurements">Measurements</a></h2>
+<p>TDX measurements are 48-byte register values that identify the software running
+inside a Trust Domain:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Register</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>MR_TD</code></td><td>Measurement of the TD build-time configuration and firmware</td></tr>
+<tr><td><code>RTMR0</code></td><td>Runtime measurement register 0</td></tr>
+<tr><td><code>RTMR1</code></td><td>Runtime measurement register 1</td></tr>
+<tr><td><code>RTMR2</code></td><td>Runtime measurement register 2</td></tr>
+<tr><td><code>RTMR3</code></td><td>Runtime measurement register 3</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="creating-measurements"><a class="header" href="#creating-measurements">Creating measurements</a></h3>
+<pre><code class="language-rust ignore">use mosaik::tdx::Measurement;
+
+// From a hex string (96 characters = 48 bytes)
+let m = Measurement::hex("91eb2b44d141d4ece09f0c75c2c53d247a3c68edd7fafe8a3520c942a604a407de03ae6dc5f87f27428b2538873118b7");
+
+// From a byte array
+let m = Measurement::new([0u8; 48]);
+
+// Parse from string at runtime
+let m: Measurement = "91eb2b44...".parse()?;</code></pre>
+<h3 id="reading-local-measurements"><a class="header" href="#reading-local-measurements">Reading local measurements</a></h3>
+<p>When running inside a TDX guest, you can read the local machine’s measurements
+directly without needing a <code>Network</code> instance:</p>
+<pre><code class="language-rust ignore">use mosaik::tdx::Measurements;
+
+let local = Measurements::local()?;
+println!("MR_TD: {}", local.mrtd());
+println!("RTMR0: {}", local.rtmr0());
+println!("RTMR1: {}", local.rtmr1());
+println!("RTMR2: {}", local.rtmr2());
+println!("RTMR3: {}", local.rtmr3());</code></pre>
+<p>This is also available through <code>network.tdx().measurements()</code>, which delegates
+to the same underlying call.</p>
+<h2 id="tdxvalidator"><a class="header" href="#tdxvalidator">TdxValidator</a></h2>
+<p><code>TdxValidator</code> implements the <code>TicketValidator</code> trait for TDX attestation. It
+validates that a peer’s TDX Quote carries valid hardware signatures and that
+the measurements match specified criteria.</p>
+<h3 id="basic-usage"><a class="header" href="#basic-usage">Basic usage</a></h3>
+<pre><code class="language-rust ignore">use mosaik::tdx::TdxValidator;
+
+// Accept any valid TDX attestation (signatures must verify)
+let validator = TdxValidator::new();
+
+// Require a specific MR_TD value
+let validator = TdxValidator::new()
+    .require_mrtd("91eb2b44d141d4ece09f0c75c2c53d247a3c68edd7fafe8a3520c942a604a407de03ae6dc5f87f27428b2538873118b7");
+
+// Require specific RTMRs
+let validator = TdxValidator::new()
+    .require_mrtd("...")
+    .require_rtmr0("...")
+    .require_rtmr2("...");</code></pre>
+<h3 id="builder-methods"><a class="header" href="#builder-methods">Builder methods</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>new()</code> / <code>empty()</code></td><td>Accept any valid TDX attestation</td></tr>
+<tr><td><code>baseline(criteria)</code></td><td>Start from a <code>MeasurementsCriteria</code> baseline</td></tr>
+<tr><td><code>from_local()</code></td><td>Require all measurements to match the local machine</td></tr>
+<tr><td><code>require_mrtd(measurement)</code></td><td>Require a specific MR_TD value</td></tr>
+<tr><td><code>require_rtmr0(measurement)</code></td><td>Require a specific RTMR0 value</td></tr>
+<tr><td><code>require_rtmr1(measurement)</code></td><td>Require a specific RTMR1 value</td></tr>
+<tr><td><code>require_rtmr2(measurement)</code></td><td>Require a specific RTMR2 value</td></tr>
+<tr><td><code>require_rtmr3(measurement)</code></td><td>Require a specific RTMR3 value</td></tr>
+<tr><td><code>require_own_mrtd()</code></td><td>Require the same MR_TD as the local machine</td></tr>
+<tr><td><code>require_own_rtmr0()</code></td><td>Require the same RTMR0 as the local machine</td></tr>
+<tr><td><code>require_own_rtmr1()</code></td><td>Require the same RTMR1 as the local machine</td></tr>
+<tr><td><code>require_own_rtmr2()</code></td><td>Require the same RTMR2 as the local machine</td></tr>
+<tr><td><code>require_own_rtmr3()</code></td><td>Require the same RTMR3 as the local machine</td></tr>
+<tr><td><code>allow_variant(criteria)</code></td><td>Allow an alternative set of measurement criteria</td></tr>
+</tbody>
+</table>
+</div>
+<p>The <code>from_local()</code> and <code>require_own_*</code> methods read measurements from TDX
+hardware and return <code>Result</code>, so they require <code>?</code> or <code>.expect()</code> in the builder
+chain.</p>
+<h3 id="validation-checks"><a class="header" href="#validation-checks">Validation checks</a></h3>
+<p>When validating a peer’s ticket, <code>TdxValidator</code> performs these checks in order:</p>
+<ol>
+<li>Deserializes the ticket data into a <code>TdxTicket</code></li>
+<li>Parses and verifies the TDX Quote’s hardware signature</li>
+<li>Verifies the quote’s <code>report_data</code> matches the hash of the extra data</li>
+<li>Checks the baseline measurement criteria against the quote’s measurements</li>
+<li>If variant criteria are configured, checks that at least one matches</li>
+<li>Verifies the ticket’s peer ID matches the peer entry’s ID</li>
+<li>Verifies the ticket’s network ID matches the peer entry’s network ID</li>
+<li>Checks that the ticket has not expired</li>
+</ol>
+<h3 id="multiple-measurement-profiles"><a class="header" href="#multiple-measurement-profiles">Multiple measurement profiles</a></h3>
+<p>The <code>allow_variant</code> method lets you accept nodes with different software
+configurations. The baseline criteria must always be satisfied, and at least one
+variant must also match (if any are configured):</p>
+<pre><code class="language-rust ignore">use mosaik::tdx::{TdxValidator, MeasurementsCriteria};
+
+let validator = TdxValidator::new()
+    // All nodes must have this MR_TD
+    .require_mrtd("aabb...")
+    // Accept nodes running firmware version A
+    .allow_variant(
+        MeasurementsCriteria::new().require_rtmr0("1111...")
+    )
+    // OR firmware version B
+    .allow_variant(
+        MeasurementsCriteria::new().require_rtmr0("2222...")
+    );</code></pre>
+<h3 id="matching-local-measurements"><a class="header" href="#matching-local-measurements">Matching local measurements</a></h3>
+<p>When every node in a group runs the same binary on the same TDX image, you can
+require peers to present measurements identical to the local machine’s — without
+hardcoding hex strings. The values are read from TDX hardware at construction
+time and become part of the validator’s signature, so all nodes with the same
+measurements will derive the same group identity.</p>
+<pre><code class="language-rust ignore">use mosaik::tdx::TdxValidator;
+
+// Require all measurements to match (MR_TD + all RTMRs)
+let validator = TdxValidator::from_local()?;
+
+// Require only specific registers to match
+let validator = TdxValidator::new()
+    .require_own_mrtd()?
+    .require_own_rtmr2()?;
+
+// Mix local and explicit measurements
+let local = Measurements::local()?;
+let validator = TdxValidator::new()
+    .require_mrtd(local.mrtd())
+    .require_rtmr1("abcd...");</code></pre>
+<p>This is particularly useful for collections and groups where the validator’s
+signature is part of the group identity — every peer with the same TDX image
+will derive matching signatures automatically.</p>
+<h2 id="using-tdx-with-streams"><a class="header" href="#using-tdx-with-streams">Using TDX with Streams</a></h2>
+<pre><code class="language-rust ignore">use mosaik::*;
+use mosaik::tdx::TdxValidator;
+
+// Via the stream! macro
+declare::stream!(
+    pub SecureFeed = PriceUpdate, "secure.prices",
+    consumer require_ticket: TdxValidator::new()
+        .require_mrtd("..."),
+);
+
+// Via the builder API
+let producer = network.streams()
+    .producer::&lt;PriceUpdate&gt;()
+    .require_ticket(TdxValidator::new().require_mrtd("..."))
+    .build()?;
+
+let consumer = network.streams()
+    .consumer::&lt;PriceUpdate&gt;()
+    .require_ticket(TdxValidator::new().require_mrtd("..."))
+    .build();</code></pre>
+<h2 id="using-tdx-with-groups"><a class="header" href="#using-tdx-with-groups">Using TDX with Groups</a></h2>
+<pre><code class="language-rust ignore">use mosaik::tdx::TdxValidator;
+use mosaik::groups::GroupKey;
+
+let validator = TdxValidator::new().require_mrtd("...");
+
+let group = network.groups()
+    .with_key(GroupKey::from(&amp;validator))
+    .with_state_machine(MyStateMachine::default())
+    .require_ticket(validator)
+    .join();</code></pre>
+<h2 id="using-tdx-with-collections"><a class="header" href="#using-tdx-with-collections">Using TDX with Collections</a></h2>
+<pre><code class="language-rust ignore">use mosaik::*;
+use mosaik::tdx::TdxValidator;
+
+// Via the collection! macro with a hardcoded measurement
+declare::collection!(
+    pub SecureStore = mosaik::collections::Map&lt;String, String&gt;,
+    "secure.store",
+    require_ticket: TdxValidator::new().require_mrtd("..."),
+);
+
+// Via the collection! macro with local measurement matching
+declare::collection!(
+    pub SecureStore = mosaik::collections::Map&lt;String, String&gt;,
+    "secure.store",
+    require_ticket: TdxValidator::new()
+        .require_own_mrtd()
+        .expect("TDX must be available")
+        .require_own_rtmr2()
+        .expect("TDX must be available"),
+);
+
+// Via CollectionConfig
+let config = CollectionConfig::default()
+    .require_ticket(TdxValidator::from_local()?);
+
+let writer = mosaik::collections::Map::&lt;String, String&gt;::writer_with_config(
+    &amp;network, store_id, config,
+);</code></pre>
+<h2 id="tdx-image-builder"><a class="header" href="#tdx-image-builder">TDX Image Builder</a></h2>
+<p>Mosaik includes a build-time tool for creating TDX guest images from Rust
+crates. The builder cross-compiles your binary for <code>x86_64-unknown-linux-musl</code>,
+packages it with an Alpine Linux root filesystem, kernel, and OVMF firmware, and
+produces a self-extracting launch script.</p>
+<p>Enable it in your <code>build-dependencies</code>:</p>
+<pre><code class="language-toml">[build-dependencies]
+mosaik = { version = "0.3", features = ["tdx-builder-alpine"] }
+</code></pre>
+<h3 id="usage-in-buildrs"><a class="header" href="#usage-in-buildrs">Usage in build.rs</a></h3>
+<pre><code class="language-rust ignore">fn main() {
+    let output = mosaik::tdx::build::alpine().build();
+    for line in format!("{output:#?}").lines() {
+        println!("cargo:warning={line}");
+    }
+}</code></pre>
+<p>The builder:</p>
+<ol>
+<li>Cross-compiles the current crate for <code>x86_64-unknown-linux-musl</code></li>
+<li>Downloads the Alpine Linux minirootfs and a TDX-enabled kernel</li>
+<li>Obtains OVMF firmware for TDX</li>
+<li>Bundles everything into a CPIO initramfs</li>
+<li>Pre-computes the <code>MR_TD</code> measurement for the resulting image</li>
+<li>Generates a self-extracting launch script</li>
+</ol>
+<p>The pre-computed <code>MR_TD</code> can be used directly in <code>TdxValidator::require_mrtd()</code>
+for compile-time attestation binding — the binary that builds the image knows
+exactly what measurement to expect from the resulting TDX guest.</p>
+<h3 id="builder-options-3"><a class="header" href="#builder-options-3">Builder options</a></h3>
+<p>The <code>AlpineBuilder</code> provides a fluent API for customization:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>alpine_version(m, p)</code></td><td>Set Alpine Linux version (default: auto-detected)</td></tr>
+<tr><td><code>ssh_key(key)</code></td><td>Add an SSH public key for guest access</td></tr>
+<tr><td><code>ssh_forward(host, guest)</code></td><td>Configure SSH port forwarding</td></tr>
+<tr><td><code>cpus(n)</code></td><td>Set default vCPU count</td></tr>
+<tr><td><code>memory(size)</code></td><td>Set default memory (e.g., <code>"2G"</code>)</td></tr>
+<tr><td><code>extra_file(path, dest)</code></td><td>Bundle additional files into the image</td></tr>
+<tr><td><code>kernel_modules_dir(path)</code></td><td>Specify custom kernel modules directory</td></tr>
+<tr><td><code>bundle_runner(bool)</code></td><td>Include the QEMU launch script in the output</td></tr>
 </tbody>
 </table>
 </div>
@@ -6827,7 +7288,7 @@ mosaik’s own test infrastructure when contributing.</p>
 <h3 id="dependencies"><a class="header" href="#dependencies">Dependencies</a></h3>
 <p>Add these to your <code>[dev-dependencies]</code>:</p>
 <pre><code class="language-toml">[dev-dependencies]
-mosaik = { version = "0.2" }
+mosaik = { version = "0.3" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

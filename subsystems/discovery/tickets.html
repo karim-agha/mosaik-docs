@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-c7fd538c.js";
+            window.path_to_searchindex_js = "../../searchindex-feaedb2c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-1970cca6.js"></script>
+        <script src="../../toc-f57b06e6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -253,87 +253,143 @@ the <code>Expiration</code> with the longest validity among all matching tickets
 <code>InvalidTicket</code> if none pass. This is used internally by the groups
 subsystem for expiration-aware bond management.</p>
 <h2 id="example-jwt-authenticated-streams"><a class="header" href="#example-jwt-authenticated-streams">Example: JWT-authenticated streams</a></h2>
-<p>A common pattern is to issue JWTs to authorized consumers. The producer
-then validates those JWTs inside its <code>require</code> predicate.</p>
-<h3 id="1-define-a-ticket-class"><a class="header" href="#1-define-a-ticket-class">1. Define a ticket class</a></h3>
-<p>Both producer and consumer agree on a <code>UniqueId</code> for the ticket class:</p>
-<pre><code class="language-rust ignore">use mosaik::{UniqueId, id};
+<p>Mosaik ships a built-in [<code>JwtTicketValidator</code>] that covers the common
+case of HMAC- or RSA-signed JWTs. No extra dependencies or custom trait
+implementations needed for the validating side.</p>
+<h3 id="1-set-up-the-validator"><a class="header" href="#1-set-up-the-validator">1. Set up the validator</a></h3>
+<pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
+use mosaik::tickets::jwt::JwtTicketValidator;
+use sha2::Sha256;
 
-const JWT_TICKET: UniqueId = id!("my-app.jwt");</code></pre>
+let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
+
+let validator = JwtTicketValidator::with_key(key)
+    .allow_issuer("my-app")   // require iss == "my-app"
+    .allow_audience("stream"); // require aud == "stream" (optional)</code></pre>
+<p>Builder methods (all optional, all chainable):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>.allow_issuer(s)</code></td><td>Require <code>iss</code> to match; call multiple times for OR logic</td></tr>
+<tr><td><code>.allow_audience(s)</code></td><td>Require <code>aud</code> to match; call multiple times for OR logic</td></tr>
+<tr><td><code>.require_subject(s)</code></td><td>Override default subject (default: peer id in lowercase hex)</td></tr>
+<tr><td><code>.require_claim(name, value)</code></td><td>Require a custom private claim; multiple calls compose as AND</td></tr>
+<tr><td><code>.allow_non_expiring()</code></td><td>Accept JWTs without an <code>exp</code> claim</td></tr>
+</tbody>
+</table>
+</div>
+<p>The validator checks <code>iss</code>, <code>sub</code>, <code>nbf</code>, <code>exp</code>, <code>aud</code>, and any custom
+claims you specify. Tokens with overflowed or non-representable <code>exp</code>
+timestamps are rejected rather than silently treated as non-expiring.</p>
 <h3 id="2-consumer-attach-a-jwt-ticket"><a class="header" href="#2-consumer-attach-a-jwt-ticket">2. Consumer: attach a JWT ticket</a></h3>
-<p>The consumer creates a JWT, wraps it in a <code>Ticket</code>, and publishes it
-via discovery:</p>
-<pre><code class="language-rust ignore">use mosaik::{Ticket, Bytes};
+<p>The consumer signs a JWT and publishes it via discovery. The ticket
+class must be <code>JwtTicketValidator::CLASS</code>:</p>
+<pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
+use jwt::{Claims, RegisteredClaims, SignWithKey};
+use mosaik::{Ticket, tickets::jwt::JwtTicketValidator};
+use sha2::Sha256;
 
-// (JWT creation uses any standard JWT library)
-let jwt_string: String = create_signed_jwt(&amp;consumer_peer_id);
+let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
 
-let ticket = Ticket::new(JWT_TICKET, Bytes::from(jwt_string));
+let jwt_string = Claims::new(RegisteredClaims {
+    issuer: Some("my-app".into()),
+    subject: Some(peer_id.to_string().to_lowercase()),
+    expiration: Some(
+        (chrono::Utc::now() + chrono::Duration::hours(1))
+            .timestamp() as u64,
+    ),
+    ..Default::default()
+})
+.sign_with_key(&amp;key)
+.unwrap();
+
+let ticket = Ticket::new(
+    JwtTicketValidator::CLASS,
+    jwt_string.into(),
+);
 network.discovery().add_ticket(ticket);</code></pre>
 <p>Because tickets propagate through gossip, the producer will see them
 when the consumer’s updated <code>PeerEntry</code> arrives.</p>
 <h3 id="3-validate-tickets-on-streams"><a class="header" href="#3-validate-tickets-on-streams">3. Validate tickets on streams</a></h3>
-<h4 id="using-with_ticket_validator-recommended"><a class="header" href="#using-with_ticket_validator-recommended">Using <code>with_ticket_validator</code> (recommended)</a></h4>
-<p>The <code>with_ticket_validator</code> method accepts a <code>TicketValidator</code>
-implementation. It validates tickets at connection time <strong>and</strong>
-proactively disconnects peers when their tickets expire:</p>
-<pre><code class="language-rust ignore">let producer = network.streams()
+<p>Use <code>require_ticket</code> on either the producer or consumer builder.
+It validates at connection time <strong>and</strong> proactively disconnects peers
+when their ticket expires. Call it multiple times to require multiple
+types of tickets — peers must satisfy all configured validators:</p>
+<pre><code class="language-rust ignore">let validator = JwtTicketValidator::with_key(key.clone())
+    .allow_issuer("my-app");
+
+// Producer side — validates incoming consumers
+let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .with_ticket_validator(MyJwtValidator::new())
+    .require_ticket(validator.clone())
     .build()?;
 
+// Consumer side — validates discovered producers
 let consumer = network.streams()
     .consumer::&lt;MyDatum&gt;()
-    .with_ticket_validator(MyJwtValidator::new())
+    .require_ticket(validator.clone())
     .build();</code></pre>
-<p>Both producer and consumer builders support <code>with_ticket_validator</code>.
-The <code>stream!</code> macro also supports this via the <code>require_ticket</code> key:</p>
-<pre><code class="language-rust ignore">use mosaik::*;
+<p>The <code>stream!</code> macro supports this via <code>require_ticket</code>:</p>
+<pre><code class="language-rust ignore">use mosaik::{declare, tickets::jwt::JwtTicketValidator};
 
-declare::stream!(pub AuthFeed = MyDatum, "auth.feed",
-    require_ticket: MyJwtValidator::new(),
+declare::stream!(
+    pub AuthFeed = MyDatum, "auth.feed",
+    require_ticket: JwtTicketValidator::with_key(key).allow_issuer("my-app"),
 );</code></pre>
 <p>See <a href="../streams.html#the-stream-macro-recommended">Streams &gt; The <code>stream!</code> macro</a>
 for full macro syntax.</p>
-<h4 id="using-require-with-closures"><a class="header" href="#using-require-with-closures">Using <code>require</code> with closures</a></h4>
-<p>For simpler validation without expiration tracking, use
-<code>has_valid_ticket</code> inside a <code>require</code> predicate:</p>
-<pre><code class="language-rust ignore">let producer = network.streams()
+<h3 id="4-validate-tickets-on-groups"><a class="header" href="#4-validate-tickets-on-groups">4. Validate tickets on groups</a></h3>
+<pre><code class="language-rust ignore">let validator = JwtTicketValidator::with_key(key.clone())
+    .allow_issuer("my-app");
+
+let group = network.groups()
+    .with_key(GroupKey::from(&amp;validator))
+    .with_state_machine(MyStateMachine::default())
+    .require_ticket(validator)
+    .join();</code></pre>
+<p><code>GroupKey::from(&amp;validator)</code> derives the group identity from the
+validator’s <code>signature()</code>, so all nodes using the same validator
+configuration automatically derive the same group key.</p>
+<h3 id="5-using-require-closures-alternative"><a class="header" href="#5-using-require-closures-alternative">5. Using <code>require</code> closures (alternative)</a></h3>
+<p>For quick prototyping without expiration tracking, use <code>has_valid_ticket</code>
+inside a <code>require</code> predicate:</p>
+<pre><code class="language-rust ignore">use mosaik::tickets::jwt::JwtTicketValidator;
+
+let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
     .require(move |peer| {
-        peer.has_valid_ticket(JWT_TICKET, |jwt_bytes| {
+        peer.has_valid_ticket(JwtTicketValidator::CLASS, |jwt_bytes| {
             let jwt_str = std::str::from_utf8(jwt_bytes).unwrap_or("");
-            // Verify signature, expiration, issuer, subject...
-            validate_jwt(jwt_str, peer.id())
+            // Custom signature check...
+            verify_jwt(jwt_str, peer.id())
         })
     })
     .build()?;</code></pre>
-<p>The predicate runs each time a consumer attempts to subscribe. If the
-consumer has no ticket of the right class, or if every ticket fails the
-validator, <code>has_valid_ticket</code> returns <code>false</code> and the subscription is
-rejected with a <code>NotAllowed</code> close code.</p>
-<h3 id="4-what-happens-at-runtime"><a class="header" href="#4-what-happens-at-runtime">4. What happens at runtime</a></h3>
-<pre><code>Consumer                        Discovery gossip                    Producer
-────────                        ───────────────                     ────────
-add_ticket(jwt)  ──────────►  PeerEntry { tickets: [jwt] }
+<p>The predicate runs each time a consumer attempts to subscribe. Expired
+tickets are only caught on the next reconnection attempt (no proactive
+disconnect).</p>
+<h3 id="6-what-happens-at-runtime"><a class="header" href="#6-what-happens-at-runtime">6. What happens at runtime</a></h3>
+<pre><code class="language-text">Consumer                        Discovery gossip              Producer / Group
+────────                        ───────────────               ────────────────
+sign JWT + add_ticket() ─────► PeerEntry { tickets: [jwt] }
                                         │
                                         ▼
                                gossip / catalog sync
                                         │
                                         ▼
-                                                              require(peer)
-                                                              └─ has_valid_ticket(...)
-                                                                 └─ validate jwt_bytes
-                                                                    ├─ valid → accept
-                                                                    └─ invalid → reject
+                                                         JwtTicketValidator::validate()
+                                                         ├─ sig ok, iss ok, sub ok
+                                                         ├─ nbf ≤ now ≤ exp
+                                                         ├─ valid → accept / bond
+                                                         └─ invalid → reject
 </code></pre>
-<p>Consumers that lack a valid ticket are never connected. When using
-<code>with_ticket_validator</code>, expired tickets trigger <strong>proactive
-disconnection</strong> on both producer and consumer sides — no reconnection
-attempt is needed. When using the closure-based <code>require</code> approach,
-expired tickets are rejected on subsequent reconnection attempts.
-For groups, expired tickets trigger proactive bond termination —
-see <a href="../groups/joining.html">Groups &gt; Joining</a>.</p>
+<p>When using <code>require_ticket</code>, the runtime
+schedules a disconnect at the moment <code>exp</code> is reached — no reconnection
+round-trip required. For groups, expired tickets trigger proactive bond
+termination — see <a href="../groups/joining.html">Groups &gt; Joining</a>.</p>
 <h2 id="the-ticketvalidator-trait"><a class="header" href="#the-ticketvalidator-trait">The <code>TicketValidator</code> trait</a></h2>
 <p>The <code>TicketValidator</code> trait provides structured, expiration-aware ticket
 validation. Unlike the closure-based <code>require</code> approach (which returns a
@@ -374,99 +430,52 @@ credentials expire – no reconnection round-trip required.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Feature</th><th><code>TicketValidator</code></th><th><code>require</code> closure</th></tr>
+<tr><th>Feature</th><th>Built-in <code>JwtTicketValidator</code></th><th>Custom <code>TicketValidator</code></th><th><code>require</code> closure</th></tr>
 </thead>
 <tbody>
-<tr><td>Proactive expiration disconnect</td><td>Yes</td><td>No (next reconnect)</td></tr>
-<tr><td>Group ID derivation</td><td>Yes (via <code>signature()</code>)</td><td>Not applicable</td></tr>
-<tr><td>Complexity</td><td>Implement a trait</td><td>Inline closure</td></tr>
-<tr><td>Best for</td><td>Production auth</td><td>Quick prototyping</td></tr>
+<tr><td>Proactive expiration disconnect</td><td>Yes</td><td>Yes</td><td>No (next reconnect)</td></tr>
+<tr><td>Group ID derivation</td><td>Yes (via <code>signature()</code>)</td><td>Yes (via <code>signature()</code>)</td><td>Not applicable</td></tr>
+<tr><td>Complexity</td><td>Zero — built in</td><td>Implement a trait</td><td>Inline closure</td></tr>
+<tr><td>Best for</td><td>JWT auth (HMAC / RSA / EC)</td><td>Custom credential types</td><td>Quick prototyping</td></tr>
 </tbody>
 </table>
 </div>
-<h3 id="example-jwt-ticket-validator"><a class="header" href="#example-jwt-ticket-validator">Example: JWT ticket validator</a></h3>
-<p>Below is a complete <code>TicketValidator</code> implementation using JWTs with
-HMAC-SHA256 signatures. It validates the issuer, subject (must match the
-peer’s ID), and expiration claims.</p>
-<p>Add these dependencies to your <code>Cargo.toml</code>:</p>
-<pre><code class="language-toml">[dependencies]
-hmac = "0.12"
-jwt = "0.16"
-sha2 = "0.10"
-chrono = "0.4"
-</code></pre>
-<p>Then implement the validator:</p>
-<pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
-use jwt::{RegisteredClaims, SignWithKey, VerifyWithKey};
-use mosaik::{
-    Bytes, Expiration, InvalidTicket, PeerId, Ticket,
-    TicketValidator, UniqueId, discovery::PeerEntry, id,
+<h2 id="custom-validators"><a class="header" href="#custom-validators">Custom validators</a></h2>
+<p>If you need a credential scheme other than JWTs, implement the
+<code>TicketValidator</code> trait directly. The three methods to implement:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>class()</code></td><td>Returns the <code>UniqueId</code> matching your ticket class. Only tickets of this class are passed to <code>validate()</code>.</td></tr>
+<tr><td><code>signature()</code></td><td>Deterministic ID derived from the validator type <strong>and</strong> config. All group members must produce the same signature.</td></tr>
+<tr><td><code>validate()</code></td><td>Receives raw ticket bytes and the <code>PeerEntry</code>. Returns <code>Ok(Expiration)</code> on success or <code>Err(InvalidTicket)</code> on failure.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-rust ignore">use mosaik::{
+    Expiration, InvalidTicket, UniqueId,
+    discovery::PeerEntry,
+    id,
+    tickets::TicketValidator,
 };
-use std::time::Duration;
 
-pub struct JwtTicketValidator {
-    key: Hmac&lt;sha2::Sha256&gt;,
-    issuer: String,
-    secret: String,
+pub struct MyValidator {
+    // your config fields
 }
 
-impl JwtTicketValidator {
-    pub fn new(issuer: &amp;str, secret: &amp;str) -&gt; Self {
-        Self {
-            key: Hmac::new_from_slice(secret.as_bytes()).unwrap(),
-            issuer: issuer.to_string(),
-            secret: secret.to_string(),
-        }
-    }
-
-    /// Create a signed JWT ticket for a specific peer.
-    pub fn make_ticket(
-        &amp;self,
-        peer_id: &amp;PeerId,
-        expiration: Expiration,
-    ) -&gt; Ticket {
-        Ticket::new(
-            self.class(),
-            jwt::Claims::new(RegisteredClaims {
-                issuer: Some(self.issuer.clone()),
-                subject: Some(peer_id.to_string()),
-                expiration: match expiration {
-                    Expiration::Never =&gt; None,
-                    Expiration::At(ts) =&gt; {
-                        Some(ts.timestamp() as u64)
-                    }
-                },
-                ..Default::default()
-            })
-            .sign_with_key(&amp;self.key)
-            .unwrap()
-            .into(),
-        )
-    }
-
-    /// Create a ticket that expires after the given duration.
-    pub fn make_ticket_expiring_in(
-        &amp;self,
-        peer_id: &amp;PeerId,
-        duration: Duration,
-    ) -&gt; Ticket {
-        let exp = chrono::Utc::now()
-            + chrono::Duration::from_std(duration).unwrap();
-        self.make_ticket(peer_id, Expiration::At(exp))
-    }
-}
-
-impl TicketValidator for JwtTicketValidator {
+impl TicketValidator for MyValidator {
     fn class(&amp;self) -&gt; UniqueId {
-        id!("my-app.jwt")
+        id!("my-app.credential")
     }
 
     fn signature(&amp;self) -&gt; UniqueId {
-        // Derive from class + issuer + secret so that validators
-        // with different configurations produce different signatures.
-        self.class()
-            .derive(&amp;self.issuer)
-            .derive(&amp;self.secret)
+        // Derive from class + any config that affects validation logic.
+        // Two validators with different configs must produce different
+        // signatures to avoid mismatched group IDs.
+        self.class().derive("v1")
     }
 
     fn validate(
@@ -474,77 +483,17 @@ impl TicketValidator for JwtTicketValidator {
         ticket: &amp;[u8],
         peer: &amp;PeerEntry,
     ) -&gt; Result&lt;Expiration, InvalidTicket&gt; {
-        let jwt_str =
-            core::str::from_utf8(ticket).map_err(|_| InvalidTicket)?;
-
-        let claims: jwt::Claims = jwt_str
-            .verify_with_key(&amp;self.key)
-            .map_err(|_| InvalidTicket)?;
-
-        let now = chrono::Utc::now().timestamp() as u64;
-        let exp = claims.registered.expiration;
-
-        // Reject if issuer doesn't match
-        if claims.registered.issuer.as_deref() != Some(&amp;self.issuer) {
-            return Err(InvalidTicket);
-        }
-
-        // Reject if subject doesn't match the peer's ID
-        if claims.registered.subject
-            != Some(peer.id().to_string())
-        {
-            return Err(InvalidTicket);
-        }
-
-        // Reject if already expired
-        if exp &lt;= Some(now) {
-            return Err(InvalidTicket);
-        }
-
-        // Convert the expiration claim to an Expiration value
-        Ok(exp
-            .and_then(|ts| {
-                chrono::DateTime::from_timestamp(ts as i64, 0)
-            })
-            .map_or(Expiration::Never, Expiration::At))
+        // Verify the credential bytes against `peer`.
+        // Return Ok(Expiration::At(ts)) for time-limited credentials,
+        // Ok(Expiration::Never) for permanent ones.
+        todo!()
     }
 }</code></pre>
-<h3 id="using-the-validator"><a class="header" href="#using-the-validator">Using the validator</a></h3>
-<p>With streams (trait-based):</p>
-<pre><code class="language-rust ignore">let validator = JwtTicketValidator::new("my-app", "my-secret");
-
-// Producer side -- validates incoming consumers
-let producer = network.streams()
+<p>Plug it in exactly like the built-in validator:</p>
+<pre><code class="language-rust ignore">let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .with_ticket_validator(
-        JwtTicketValidator::new("my-app", "my-secret"),
-    )
-    .build()?;
-
-// Consumer side -- validates discovered producers
-let consumer = network.streams()
-    .consumer::&lt;MyDatum&gt;()
-    .with_ticket_validator(
-        JwtTicketValidator::new("my-app", "my-secret"),
-    )
-    .build();</code></pre>
-<p>With groups:</p>
-<pre><code class="language-rust ignore">let group = network.groups()
-    .builder::&lt;MyStateMachine&gt;()
-    .require_ticket(
-        JwtTicketValidator::new("my-app", "my-secret"),
-    )
+    .require_ticket(MyValidator { /* ... */ })
     .build()?;</code></pre>
-<p>The consumer creates and attaches the ticket:</p>
-<pre><code class="language-rust ignore">let validator = JwtTicketValidator::new("my-app", "my-secret");
-let ticket = validator.make_ticket_expiring_in(
-    network.local().peer_id(),
-    Duration::from_secs(3600),
-);
-network.discovery().add_ticket(ticket);</code></pre>
-<p>When the JWT’s <code>exp</code> claim is reached, the runtime automatically
-terminates the connection (stream subscription or group bond) without
-waiting for a reconnection attempt.</p>
 <h2 id="design-notes"><a class="header" href="#design-notes">Design notes</a></h2>
 <ul>
 <li>
@@ -575,9 +524,20 @@ connections when tickets expire, rather than waiting for the next
 reconnection attempt.</p>
 </li>
 <li>
+<p><strong>Multiple validators.</strong> All subsystems (streams, groups, collections)
+support multiple <code>require_ticket</code> calls. Peers must satisfy <strong>all</strong>
+configured validators to be accepted. The runtime tracks the earliest
+expiration across all validators for automatic disconnect scheduling.</p>
+</li>
+<li>
 <p><strong>Multiple ticket classes.</strong> A single peer can carry tickets of
 different classes simultaneously. Producers can check for any
 combination of classes in their <code>require</code> predicate.</p>
+</li>
+<li>
+<p><strong>TDX attestation.</strong> Mosaik provides a built-in <code>TdxValidator</code> for
+Intel TDX hardware attestation. See
+<a href="../tee/tdx.html">TEE &gt; TDX</a> for details.</p>
 </li>
 </ul>
 

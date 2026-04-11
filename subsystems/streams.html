@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c7fd538c.js";
+            window.path_to_searchindex_js = "../searchindex-feaedb2c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-1970cca6.js"></script>
+        <script src="../toc-f57b06e6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -360,7 +360,7 @@ each key to the correct builder (producer or consumer) automatically:</p>
 </thead>
 <tbody>
 <tr><td><code>require</code></td><td>Conditions for accepting a consumer or producer connection</td></tr>
-<tr><td><code>require_ticket</code></td><td>Expiration-aware ticket validator (see below)</td></tr>
+<tr><td><code>require_ticket</code></td><td>Expiration-aware ticket validator (stackable; see below)</td></tr>
 <tr><td><code>online_when</code></td><td>Conditions for the stream to be considered online</td></tr>
 </tbody>
 </table>
@@ -373,9 +373,10 @@ each key to the correct builder (producer or consumer) automatically:</p>
 );</code></pre>
 <h4 id="ticket-validator"><a class="header" href="#ticket-validator">Ticket validator</a></h4>
 <p>The <code>require_ticket</code> key accepts an expression that implements
-<code>TicketValidator</code>. It maps to <code>.with_ticket_validator(expr)</code> on the
-underlying builder. When the ticket expires, the connection is
-automatically terminated:</p>
+<code>TicketValidator</code>. It maps to <code>.require_ticket(expr)</code> on the
+underlying builder. Multiple <code>require_ticket</code> entries can be specified
+(peers must satisfy all of them). When the earliest ticket expires, the
+connection is automatically terminated:</p>
 <pre><code class="language-rust ignore">use mosaik::*;
 
 declare::stream!(pub AuthFeed = PriceUpdate, "auth.feed",

@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-c7fd538c.js";
+            window.path_to_searchindex_js = "../../searchindex-feaedb2c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-1970cca6.js"></script>
+        <script src="../../toc-f57b06e6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -204,7 +204,7 @@
 </thead>
 <tbody>
 <tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Adds a consumer eligibility requirement (AND-composed)</td></tr>
-<tr><td><code>with_ticket_validator(validator)</code></td><td>None</td><td>Expiration-aware ticket validation (see below)</td></tr>
+<tr><td><code>require_ticket(validator)</code></td><td>None</td><td>Expiration-aware ticket validation (stackable; see below)</td></tr>
 <tr><td><code>online_when(conditions)</code></td><td><code>minimum_of(1)</code></td><td>Conditions under which the producer is online</td></tr>
 <tr><td><code>disconnect_lagging(bool)</code></td><td><code>true</code></td><td>Disconnect consumers that fall behind <code>buffer_size</code></td></tr>
 <tr><td><code>with_buffer_size(n)</code></td><td><code>1024</code></td><td>Internal channel buffer size</td></tr>
@@ -232,16 +232,18 @@ producer.send(datum).await?;</code></pre>
 }</code></pre>
 <p>All error variants return the unsent datum so you can retry or inspect it.</p>
 <h2 id="ticket-based-authentication"><a class="header" href="#ticket-based-authentication">Ticket-Based Authentication</a></h2>
-<h3 id="using-with_ticket_validator-recommended"><a class="header" href="#using-with_ticket_validator-recommended">Using <code>with_ticket_validator</code> (recommended)</a></h3>
-<p>The <code>with_ticket_validator</code> method accepts a <code>TicketValidator</code>
-implementation that validates consumer tickets and returns their
-expiration. When a ticket expires, the producer <strong>proactively
-disconnects</strong> the consumer — no reconnection attempt is needed:</p>
+<h3 id="using-require_ticket-recommended"><a class="header" href="#using-require_ticket-recommended">Using <code>require_ticket</code> (recommended)</a></h3>
+<p>The <code>require_ticket</code> method accepts a <code>TicketValidator</code> implementation
+that validates consumer tickets and returns their expiration. Call it
+multiple times to require multiple types of tickets — peers must satisfy
+all configured validators. When the earliest ticket expires, the producer
+<strong>proactively disconnects</strong> the consumer — no reconnection attempt is
+needed:</p>
 <pre><code class="language-rust ignore">use mosaik::primitives::{TicketValidator, Expiration, InvalidTicket};
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .with_ticket_validator(MyJwtValidator::new())
+    .require_ticket(MyJwtValidator::new())
     .build()?;</code></pre>
 <p>The <code>TicketValidator</code> trait:</p>
 <pre><code class="language-rust ignore">pub trait TicketValidator: Send + Sync + 'static {

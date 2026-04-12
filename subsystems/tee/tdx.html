@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-4bb1c37e.js";
+            window.path_to_searchindex_js = "../../searchindex-59c7495c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -449,48 +449,173 @@ let writer = mosaik::collections::Map::&lt;String, String&gt;::writer_with_confi
 );</code></pre>
 <h2 id="tdx-image-builder"><a class="header" href="#tdx-image-builder">TDX Image Builder</a></h2>
 <p>Mosaik includes a build-time tool for creating TDX guest images from Rust
-crates. The builder cross-compiles your binary for <code>x86_64-unknown-linux-musl</code>,
-packages it with an Alpine Linux root filesystem, kernel, and OVMF firmware, and
-produces a self-extracting launch script.</p>
-<p>Enable it in your <code>build-dependencies</code>:</p>
+crates. Two builder variants are available:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Builder</th><th>Target</th><th>Root Filesystem</th><th>Binary Linking</th><th>Feature Flag</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Alpine</strong></td><td><code>x86_64-unknown-linux-musl</code></td><td>Alpine minirootfs (~5 MB)</td><td>Static (musl)</td><td><code>tdx-builder-alpine</code></td></tr>
+<tr><td><strong>Ubuntu</strong></td><td><code>x86_64-unknown-linux-gnu</code></td><td>Ubuntu base (~25 MB)</td><td>Dynamic (glibc)</td><td><code>tdx-builder-ubuntu</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Both builders cross-compile your binary, package it with a kernel and OVMF
+firmware into a CPIO initramfs, pre-compute TDX measurements, and generate a
+self-extracting QEMU launch script. Use <code>tdx-builder-all</code> to enable both.</p>
+<h3 id="when-to-use-which"><a class="header" href="#when-to-use-which">When to use which</a></h3>
+<ul>
+<li><strong>Alpine</strong> — smaller images, faster boot, ideal for lightweight services
+that don’t need glibc or the Ubuntu package ecosystem.</li>
+<li><strong>Ubuntu</strong> — full glibc environment with standard Ubuntu packages
+(<code>kmod</code>, <code>iproute2</code>, etc.) pre-installed. Better compatibility with
+libraries that require glibc or dynamically linked C dependencies.</li>
+</ul>
+<h3 id="enable-in-build-dependencies"><a class="header" href="#enable-in-build-dependencies">Enable in build-dependencies</a></h3>
 <pre><code class="language-toml">[build-dependencies]
+# Alpine only
 mosaik = { version = "0.3", features = ["tdx-builder-alpine"] }
+
+# Ubuntu only
+mosaik = { version = "0.3", features = ["tdx-builder-ubuntu"] }
+
+# Both
+mosaik = { version = "0.3", features = ["tdx-builder-all"] }
 </code></pre>
 <h3 id="usage-in-buildrs"><a class="header" href="#usage-in-buildrs">Usage in build.rs</a></h3>
 <pre><code class="language-rust ignore">fn main() {
+    // Alpine builder
     let output = mosaik::tdx::build::alpine().build();
-    for line in format!("{output:#?}").lines() {
-        println!("cargo:warning={line}");
-    }
+
+    // Ubuntu builder
+    let output = mosaik::tdx::build::ubuntu().build();
 }</code></pre>
-<p>The builder:</p>
+<p>You can also select the builder at build time via an environment variable:</p>
+<pre><code class="language-rust ignore">fn main() {
+    let output = match std::env::var("BUILD_TYPE").as_deref() {
+        Err(_) | Ok("alpine") =&gt; {
+            mosaik::tee::tdx::build::alpine().build()
+        }
+        Ok("ubuntu") =&gt; {
+            mosaik::tee::tdx::build::ubuntu().build()
+        }
+        _ =&gt; panic!("Unknown BUILD_TYPE"),
+    };
+}</code></pre>
+<pre><code class="language-bash"># Build with Alpine (default)
+cargo build -p my-crate
+
+# Build with Ubuntu
+BUILD_TYPE=ubuntu cargo build -p my-crate
+</code></pre>
+<h3 id="build-steps"><a class="header" href="#build-steps">Build steps</a></h3>
+<p>Both builders follow the same pipeline:</p>
 <ol>
-<li>Cross-compiles the current crate for <code>x86_64-unknown-linux-musl</code></li>
-<li>Downloads the Alpine Linux minirootfs and a TDX-enabled kernel</li>
-<li>Obtains OVMF firmware for TDX</li>
-<li>Bundles everything into a CPIO initramfs</li>
-<li>Pre-computes the <code>MR_TD</code> measurement for the resulting image</li>
-<li>Generates a self-extracting launch script</li>
+<li>Cross-compile the current crate for the target triple</li>
+<li>Download the base root filesystem (Alpine minirootfs or Ubuntu base)</li>
+<li>Download a TDX-enabled kernel and OVMF firmware</li>
+<li>Bundle everything into a gzipped CPIO initramfs</li>
+<li>Pre-compute <code>MR_TD</code>, <code>RTMR[1]</code>, and <code>RTMR[2]</code> measurements</li>
+<li>Generate a self-extracting QEMU launch script</li>
 </ol>
 <p>The pre-computed <code>MR_TD</code> can be used directly in <code>Tdx::require_mrtd()</code>
 for compile-time attestation binding — the binary that builds the image knows
 exactly what measurement to expect from the resulting TDX guest.</p>
 <h3 id="builder-options"><a class="header" href="#builder-options">Builder options</a></h3>
-<p>The <code>AlpineBuilder</code> provides a fluent API for customization:</p>
+<p>Both <code>AlpineBuilder</code> and <code>UbuntuBuilder</code> share a common fluent API:</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>alpine_version(m, p)</code></td><td>Set Alpine Linux version (default: auto-detected)</td></tr>
-<tr><td><code>ssh_key(key)</code></td><td>Add an SSH public key for guest access</td></tr>
-<tr><td><code>ssh_forward(host, guest)</code></td><td>Configure SSH port forwarding</td></tr>
-<tr><td><code>cpus(n)</code></td><td>Set default vCPU count</td></tr>
-<tr><td><code>memory(size)</code></td><td>Set default memory (e.g., <code>"2G"</code>)</td></tr>
-<tr><td><code>extra_file(path, dest)</code></td><td>Bundle additional files into the image</td></tr>
-<tr><td><code>kernel_modules_dir(path)</code></td><td>Specify custom kernel modules directory</td></tr>
-<tr><td><code>bundle_runner(bool)</code></td><td>Include the QEMU launch script in the output</td></tr>
+<tr><td><code>with_custom_vmlinuz(bytes)</code></td><td>Provide a kernel binary in-memory (skips download)</td></tr>
+<tr><td><code>with_custom_ovmf(bytes)</code></td><td>Provide OVMF firmware in-memory (skips download)</td></tr>
+<tr><td><code>with_ssh_key(pubkey)</code></td><td>Add an SSH public key for guest access</td></tr>
+<tr><td><code>with_ssh_forward(host, guest)</code></td><td>Configure SSH port forwarding</td></tr>
+<tr><td><code>with_default_cpu_count(n)</code></td><td>Set default vCPU count (default: 4)</td></tr>
+<tr><td><code>with_default_memory_size(size)</code></td><td>Set default memory size (default: <code>"4G"</code>)</td></tr>
+<tr><td><code>with_bundle_runner()</code></td><td>Include the mosaik bundle runner (default)</td></tr>
+<tr><td><code>without_bundle_runner()</code></td><td>Exclude the mosaik bundle runner</td></tr>
+<tr><td><code>with_extra_file(host, guest)</code></td><td>Bundle additional files into the image</td></tr>
+<tr><td><code>with_kernel_module(path)</code></td><td>Include a <code>.ko</code> kernel module file</td></tr>
+<tr><td><code>with_kernel_modules_dir(path)</code></td><td>Auto-discover TDX kernel modules from a directory</td></tr>
+<tr><td><code>with_kernel_version(v)</code></td><td>Set kernel version for download (e.g. <code>"6.8.0-55"</code>)</td></tr>
+<tr><td><code>with_kernel_abi(abi)</code></td><td>Set kernel ABI for download (e.g. <code>"57"</code>)</td></tr>
+<tr><td><code>with_ovmf_version(v)</code></td><td>Set OVMF version for download</td></tr>
+<tr><td><code>with_artifacts_output_path(p)</code></td><td>Custom output directory for build artifacts</td></tr>
+<tr><td><code>with_arg(arg)</code></td><td>Append a command-line argument to the guest binary</td></tr>
+<tr><td><code>with_args(args)</code></td><td>Append multiple command-line arguments at once</td></tr>
+<tr><td><code>with_env(key, value)</code></td><td>Set an environment variable for the guest binary</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Alpine-specific:</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>with_major_version(v)</code></td><td>Alpine major version (default: <code>"3.21"</code>)</td></tr>
+<tr><td><code>with_minor_version(v)</code></td><td>Alpine patch release (default: <code>"0"</code>)</td></tr>
+<tr><td><code>with_custom_minirootfs(bytes)</code></td><td>Provide Alpine minirootfs tarball in-memory</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Ubuntu-specific:</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>with_ubuntu_version(v)</code></td><td>Ubuntu version (default: <code>"24.04.4"</code>)</td></tr>
+<tr><td><code>with_custom_rootfs(bytes)</code></td><td>Provide Ubuntu base rootfs tarball in-memory</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="environment-variable-overrides"><a class="header" href="#environment-variable-overrides">Environment variable overrides</a></h3>
+<p>Both builders respect environment variables for CI or scripted builds:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variable</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>TDX_IMAGE_SKIP=1</code></td><td>Skip the entire TDX image build</td></tr>
+<tr><td><code>TDX_IMAGE_ALPINE_VERSION</code></td><td>Alpine major version (Alpine builder)</td></tr>
+<tr><td><code>TDX_IMAGE_ALPINE_MINOR</code></td><td>Alpine patch release (Alpine builder)</td></tr>
+<tr><td><code>TDX_IMAGE_UBUNTU_VERSION</code></td><td>Ubuntu version (Ubuntu builder)</td></tr>
+<tr><td><code>TDX_IMAGE_KERNEL</code></td><td>Path to a custom kernel binary</td></tr>
+<tr><td><code>TDX_IMAGE_KERNEL_VERSION</code></td><td>Ubuntu kernel version for download</td></tr>
+<tr><td><code>TDX_IMAGE_KERNEL_ABI</code></td><td>Ubuntu kernel ABI for download</td></tr>
+<tr><td><code>TDX_IMAGE_OVMF</code></td><td>Path to a custom OVMF firmware file</td></tr>
+<tr><td><code>TDX_IMAGE_OVMF_VERSION</code></td><td>OVMF version for download</td></tr>
+<tr><td><code>TDX_IMAGE_EXTRA_FILES</code></td><td>Colon-separated <code>host:guest</code> file pairs</td></tr>
+<tr><td><code>TDX_IMAGE_KERNEL_MODULES</code></td><td>Colon-separated <code>.ko</code> module paths</td></tr>
+<tr><td><code>TDX_IMAGE_KERNEL_MODULES_DIR</code></td><td>Kernel modules auto-discovery directory</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="build-artifacts"><a class="header" href="#build-artifacts">Build artifacts</a></h3>
+<p>Both builders produce the same set of artifacts under
+<code>&lt;target_dir&gt;/&lt;profile&gt;/tdx-artifacts/&lt;crate_name&gt;/&lt;distro&gt;/</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>File</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>&lt;crate&gt;-initramfs.cpio.gz</code></td><td>Gzipped initramfs</td></tr>
+<tr><td><code>&lt;crate&gt;-vmlinuz</code></td><td>Kernel binary</td></tr>
+<tr><td><code>&lt;crate&gt;-ovmf.fd</code></td><td>OVMF firmware</td></tr>
+<tr><td><code>&lt;crate&gt;-run-qemu.sh</code></td><td>Self-extracting QEMU launch script</td></tr>
+<tr><td><code>&lt;crate&gt;-launch-tdx.sh</code></td><td>Simple launch wrapper</td></tr>
+<tr><td><code>&lt;crate&gt;-mrtd.hex</code></td><td>Pre-computed MR_TD measurement</td></tr>
+<tr><td><code>&lt;crate&gt;-rtmr1.hex</code></td><td>Pre-computed RTMR[1] measurement</td></tr>
+<tr><td><code>&lt;crate&gt;-rtmr2.hex</code></td><td>Pre-computed RTMR[2] measurement</td></tr>
 </tbody>
 </table>
 </div>

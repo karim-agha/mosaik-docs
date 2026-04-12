@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59c7495c.js";
+            window.path_to_searchindex_js = "../searchindex-f5a1961f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f57b06e6.js"></script>
@@ -181,7 +181,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="groups"><a class="header" href="#groups">Groups</a></h1>
-<p>Availability Groups are clusters of trusted nodes on the same mosaik network that coordinate with each other for load balancing and failover. Members of a group share a secret key, maintain a consistent replicated state through a modified Raft consensus protocol, and stay connected via an all-to-all mesh of persistent <strong>bonds</strong>.</p>
+<p>Consensus Groups are clusters of trusted nodes on the same mosaik network that coordinate with each other for load balancing and failover. Members of a group share a secret key, maintain a consistent replicated state through a modified Raft consensus protocol, and stay connected via an all-to-all mesh of persistent <strong>bonds</strong>.</p>
 <h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
 <pre><code>          ┌──────────┐
           │  Node A   │
@@ -196,7 +196,8 @@
 </code></pre>
 <p>Every pair of group members maintains a persistent <strong>bond</strong> — an authenticated, bidirectional QUIC connection. Bonds carry Raft consensus messages, heartbeats, and log-sync traffic.</p>
 <h2 id="trust-model"><a class="header" href="#trust-model">Trust Model</a></h2>
-<p>Groups are <strong>not</strong> Byzantine fault tolerant. All members within a group are assumed to be honest and operated by the same entity. The <code>GroupKey</code> acts as the sole admission control — only nodes that know the key can join.</p>
+<p>Groups are <strong>not</strong> Byzantine fault tolerant. All members within a group are assumed to be honest and operated by the same entity. The <code>GroupKey</code> acts as the primary admission control — only nodes that know the key can join.</p>
+<p>For stronger integrity guarantees, groups can optionally require hardware attestations via <code>TicketValidator</code>s (see <code>GroupBuilder::require_ticket()</code>). When combined with TEE enclaves such as Intel TDX, this provides cryptographic proof that every group member is running the expected software, hardening the trust model against compromised or tampered nodes.</p>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
 <pre><code class="language-rust ignore">use mosaik::groups::GroupKey;
 

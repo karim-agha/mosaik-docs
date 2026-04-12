@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59c7495c.js";
+            window.path_to_searchindex_js = "../searchindex-f5a1961f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f57b06e6.js"></script>
@@ -191,7 +191,7 @@
 <tbody>
 <tr><td><strong>Self-organizing</strong></td><td>Nodes discover each other via gossip and form the correct topology automatically</td></tr>
 <tr><td><strong>Typed pub/sub</strong></td><td>Stream any serializable Rust type between nodes with backpressure and filtering</td></tr>
-<tr><td><strong>Raft consensus</strong></td><td>Form availability groups with leader election and replicated state machines</td></tr>
+<tr><td><strong>Raft consensus</strong></td><td>Form consensus groups with leader election and replicated state machines</td></tr>
 <tr><td><strong>Replicated collections</strong></td><td>Distributed <code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, and <code>PriorityQueue</code> with strong consistency</td></tr>
 <tr><td><strong>QUIC transport</strong></td><td>Built on <a href="https://github.com/n0-computer/iroh">iroh</a> for modern, encrypted P2P networking</td></tr>
 <tr><td><strong>Relay support</strong></td><td>Nodes behind NAT can communicate via relay servers with automatic hole-punching</td></tr>
@@ -219,7 +219,7 @@
 <h3 id="streams"><a class="header" href="#streams">Streams</a></h3>
 <p>Typed, async pub/sub data channels. Any Rust type implementing <code>Serialize + DeserializeOwned + Send + 'static</code> can be streamed. Producers publish data; consumers subscribe. Discovery automatically connects matching producers and consumers across the network.</p>
 <h3 id="groups"><a class="header" href="#groups">Groups</a></h3>
-<p>Availability groups coordinated by a modified Raft consensus protocol. Nodes sharing a group key form a cluster, elect a leader, and replicate commands through a shared log. Custom state machines define application logic that runs deterministically on all group members.</p>
+<p>Consensus groups coordinated by a modified Raft consensus protocol. Nodes sharing a group key form a cluster, elect a leader, and replicate commands through a shared log. Custom state machines define application logic that runs deterministically on all group members.</p>
 <h3 id="collections"><a class="header" href="#collections">Collections</a></h3>
 <p>Higher-level replicated data structures built on Groups. Each collection (<code>Map</code>, <code>Vec</code>, <code>Set</code>, <code>Cell</code>, <code>Once</code>, <code>PriorityQueue</code>) creates its own Raft group with a specialized state machine.</p>
 <h3 id="tee"><a class="header" href="#tee">TEE</a></h3>
@@ -232,6 +232,7 @@
 <li>Higher throughput (fewer message rounds)</li>
 <li>Simplified state sync (no fraud proofs needed)</li>
 </ul>
+<p>For stronger integrity guarantees, groups can optionally require hardware attestations via <code>TicketValidator</code>s. When combined with TEE enclaves such as Intel TDX, this provides cryptographic proof that every group member is running the expected software, hardening the trust model against compromised or tampered nodes.</p>
 <p>This makes mosaik ideal for infrastructure controlled by a single organization, such as L2 chains, internal microservices, or distributed compute clusters.</p>
 <h3 id="built-on-iroh"><a class="header" href="#built-on-iroh">Built on iroh</a></h3>
 <p>Mosaik uses <a href="https://github.com/n0-computer/iroh">iroh</a> for its networking layer, which provides:</p>

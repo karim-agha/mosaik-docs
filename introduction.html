@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-59c7495c.js";
+            window.path_to_searchindex_js = "searchindex-f5a1961f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f57b06e6.js"></script>
@@ -195,7 +195,7 @@
 <p>From these minimal inputs, mosaik handles peer discovery, typed pub/sub data streaming, Raft-based consensus groups, and replicated data structures — all automatically.</p>
 <h2 id="design-philosophy"><a class="header" href="#design-philosophy">Design Philosophy</a></h2>
 <ul>
-<li><strong>Not Byzantine fault tolerant.</strong> All members are assumed honest. This simplifies the protocol stack and enables higher throughput compared to BFT systems.</li>
+<li><strong>Not Byzantine fault tolerant.</strong> All members are assumed honest. This simplifies the protocol stack and enables higher throughput compared to BFT systems. For stronger integrity guarantees, groups can optionally require hardware attestations (e.g. Intel TDX) to cryptographically prove that every member is running the expected software.</li>
 <li><strong>Self-organizing.</strong> No central coordinator, no manual topology configuration. Nodes find each other and form the right connections.</li>
 <li><strong>Built on modern networking.</strong> Uses <a href="https://github.com/n0-computer/iroh">iroh</a> for QUIC-based peer-to-peer transport with relay support and hole-punching.</li>
 <li><strong>Composable primitives.</strong> Five subsystems (<code>Network</code>, <code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Collections</code>) compose to support a wide range of distributed application patterns.</li>

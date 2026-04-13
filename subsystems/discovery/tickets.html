@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-5adc9aff.js";
+            window.path_to_searchindex_js = "../../searchindex-d6e97e0c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -202,10 +202,6 @@ carry a valid JWT.</p>
 stores, signs, and propagates tickets alongside the rest of the peer
 entry. Validation logic lives entirely in application code – typically
 via a <code>TicketValidator</code> implementation.</p>
-<blockquote>
-<p><strong>Module location:</strong> Ticket types live in <code>mosaik::tickets</code> (the
-top-level <code>tickets</code> module), not in <code>mosaik::primitives</code>.</p>
-</blockquote>
 <h3 id="ticket-identity"><a class="header" href="#ticket-identity">Ticket identity</a></h3>
 <p>Each ticket has a deterministic <code>id()</code> derived from its <code>class</code> and
 <code>data</code>. This ID is used as the key in the peer entry’s ticket map, so

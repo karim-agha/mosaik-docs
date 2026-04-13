@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-d6e97e0c.js";
+            window.path_to_searchindex_js = "../../searchindex-ff1299bb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -375,13 +375,30 @@ let consumer = network.streams()
     .consumer::&lt;MyDatum&gt;()
     .require_ticket(validator.clone())
     .build();</code></pre>
-<p>The <code>stream!</code> macro supports this via <code>require_ticket</code>:</p>
+<p>The <code>stream!</code> macro supports <code>require_ticket</code>, enabling compile-time
+ACL declarations. Combined with <code>Es256::hex</code>, a stream’s access
+policy — including the exact public key — is fully expressed in code
+with no runtime configuration:</p>
+<pre><code class="language-rust ignore">use mosaik::{declare, tickets::{Jwt, Es256}};
+
+declare::stream!(
+    pub AuthFeed = MyDatum, "auth.feed",
+    producer require_ticket: Jwt::with_key(Es256::hex(
+        "0298a82ebe69ad57e0f7d5c2809a05188ff58572c5a5009015f26643f91e0d3236"
+    )).allow_issuer("my-auth-service"),
+);</code></pre>
+<p>Here <code>producer require_ticket</code> means consumers validate producer
+tickets — only producers that present a JWT signed by the
+corresponding private key are accepted. The hex-encoded P-256 public
+key and issuer constraint are baked into the binary at compile time.</p>
+<p>HMAC keys work the same way:</p>
 <pre><code class="language-rust ignore">use mosaik::{declare, tickets::{Jwt, Hs256}};
 
 declare::stream!(
     pub AuthFeed = MyDatum, "auth.feed",
-    require_ticket: Jwt::with_key(Hs256::new(secret))
-        .allow_issuer("my-app"),
+    require_ticket: Jwt::with_key(Hs256::hex(
+        "87e50edd90e2f9d53a7f2a9bd51c1069a454b827f0e1002577c54e1c2a598568"
+    )).allow_issuer("my-app"),
 );</code></pre>
 <p>See <a href="../streams.html#the-stream-macro-recommended">Streams &gt; The <code>stream!</code> macro</a>
 for full macro syntax.</p>

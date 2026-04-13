@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-ff1299bb.js";
+            window.path_to_searchindex_js = "../../searchindex-6e59478a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -331,9 +331,9 @@ fn leadership_preference(&amp;self) -&gt; LeadershipPreference {
 <tr><th>Variant</th><th>Behavior</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Normal</code> (default)</td><td>Standard Raft behavior – participates in elections as a candidate</td></tr>
-<tr><td><code>Reluctant { factor: u32 }</code></td><td>Longer election timeouts (multiplied by <code>factor</code>), can still be elected</td></tr>
-<tr><td><code>Observer</code></td><td>Never self-nominates as candidate; still votes and replicates log</td></tr>
+<tr><td><code>Normal</code> (default)</td><td>Standard Raft behavior – participates in elections and counts toward quorum</td></tr>
+<tr><td><code>Reluctant { factor: u32 }</code></td><td>Longer election timeouts (multiplied by <code>factor</code>), can still be elected, counts toward quorum</td></tr>
+<tr><td><code>Observer</code></td><td>Never self-nominates; abstains from all votes (elections and commit advancement); replicates log but does not count toward quorum</td></tr>
 </tbody>
 </table>
 </div>
@@ -344,9 +344,15 @@ fn leadership_preference(&amp;self) -&gt; LeadershipPreference {
 leader can ever be elected and the group will be unable to make progress.
 Ensure at least one node has <code>Normal</code> or <code>Reluctant</code> preference.</p>
 </blockquote>
+<p>Observer nodes still replicate the log and advance their committed state
+from leader heartbeats. The key difference is that they respond with
+<code>Vote::Abstained</code> instead of <code>Vote::Granted</code> to both <code>RequestVote</code> and
+<code>AppendEntries</code> messages, so they are excluded from the quorum denominator
+entirely.</p>
 <p>This mechanism is used internally by <a href="../collections/writer-reader.html">collection readers</a>,
-which return <code>Observer</code> so that leadership stays on writer nodes where
-writes are handled directly rather than being forwarded.</p>
+which return <code>Observer</code> so that only writer nodes fill the voting committee.
+Without this, a group with many readers and few writers could gate write
+latency on slow reader acknowledgment.</p>
 <h2 id="storage"><a class="header" href="#storage">Storage</a></h2>
 <p>Commands are persisted in a log via the <code>Storage</code> trait:</p>
 <pre><code class="language-rust ignore">pub trait Storage&lt;C: Command&gt;: Send + 'static {

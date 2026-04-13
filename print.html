@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-ff1299bb.js";
+            window.path_to_searchindex_js = "searchindex-6e59478a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f57b06e6.js"></script>
@@ -3515,9 +3515,9 @@ fn leadership_preference(&amp;self) -&gt; LeadershipPreference {
 <tr><th>Variant</th><th>Behavior</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Normal</code> (default)</td><td>Standard Raft behavior – participates in elections as a candidate</td></tr>
-<tr><td><code>Reluctant { factor: u32 }</code></td><td>Longer election timeouts (multiplied by <code>factor</code>), can still be elected</td></tr>
-<tr><td><code>Observer</code></td><td>Never self-nominates as candidate; still votes and replicates log</td></tr>
+<tr><td><code>Normal</code> (default)</td><td>Standard Raft behavior – participates in elections and counts toward quorum</td></tr>
+<tr><td><code>Reluctant { factor: u32 }</code></td><td>Longer election timeouts (multiplied by <code>factor</code>), can still be elected, counts toward quorum</td></tr>
+<tr><td><code>Observer</code></td><td>Never self-nominates; abstains from all votes (elections and commit advancement); replicates log but does not count toward quorum</td></tr>
 </tbody>
 </table>
 </div>
@@ -3528,9 +3528,15 @@ fn leadership_preference(&amp;self) -&gt; LeadershipPreference {
 leader can ever be elected and the group will be unable to make progress.
 Ensure at least one node has <code>Normal</code> or <code>Reluctant</code> preference.</p>
 </blockquote>
+<p>Observer nodes still replicate the log and advance their committed state
+from leader heartbeats. The key difference is that they respond with
+<code>Vote::Abstained</code> instead of <code>Vote::Granted</code> to both <code>RequestVote</code> and
+<code>AppendEntries</code> messages, so they are excluded from the quorum denominator
+entirely.</p>
 <p>This mechanism is used internally by <a href="#writerreader-pattern">collection readers</a>,
-which return <code>Observer</code> so that leadership stays on writer nodes where
-writes are handled directly rather than being forwarded.</p>
+which return <code>Observer</code> so that only writer nodes fill the voting committee.
+Without this, a group with many readers and few writers could gate write
+latency on slow reader acknowledgment.</p>
 <h2 id="storage"><a class="header" href="#storage">Storage</a></h2>
 <p>Commands are persisted in a log via the <code>Storage</code> trait:</p>
 <pre><code class="language-rust ignore">pub trait Storage&lt;C: Command&gt;: Send + 'static {
@@ -5907,14 +5913,27 @@ quorum counts. In mosaik, a follower can <strong>abstain</strong> from voting:</
 <pre><code class="language-text">enum Vote {
     Granted,    // Standard yes vote
     Denied,     // Standard no vote
-    Abstained,  // Mosaik-specific: "I'm too far behind to vote"
+    Abstained,  // Mosaik-specific: removes node from quorum denominator
 }
 </code></pre>
-<p>A follower abstains when it detects that it is <strong>lagging behind</strong> the
-leader’s log and cannot verify log consistency. Abstaining removes the node
-from the quorum denominator until it catches up. This prevents stale nodes
-from blocking progress while still allowing them to receive new entries and
-rejoin the quorum later.</p>
+<p>A follower abstains in two situations:</p>
+<ul>
+<li>
+<p><strong>Lagging behind.</strong> When a follower detects that its log is behind the
+candidate’s or leader’s log, it abstains rather than granting or denying.
+This removes the node from the quorum denominator until it catches up,
+preventing stale nodes from blocking progress while still allowing them to
+receive new entries and rejoin the quorum later.</p>
+</li>
+<li>
+<p><strong>Observer role.</strong> Nodes with <code>LeadershipPreference::Observer</code> abstain
+permanently from both election votes (<code>RequestVote</code>) and commit-advancement
+votes (<code>AppendEntriesResponse</code>). They replicate the log and advance their
+committed state from leader heartbeats, but never count toward quorum.
+This is how collection readers avoid inflating the voting committee –
+see <a href="#writerreader-pattern">Writer/Reader Pattern</a>.</p>
+</li>
+</ul>
 <h3 id="2-no-per-follower-tracking-on-the-leader"><a class="header" href="#2-no-per-follower-tracking-on-the-leader">2. No per-follower tracking on the leader</a></h3>
 <p>Standard Raft leaders maintain <code>nextIndex[]</code> and <code>matchIndex[]</code> arrays to
 track each follower’s log position. Mosaik’s leader does <strong>not</strong> maintain
@@ -5946,12 +5965,31 @@ commands.</li>
 </ol>
 <p>This is fundamentally different from standard Raft’s approach where only the
 leader sends snapshots.</p>
-<h3 id="5-leadership-deprioritization"><a class="header" href="#5-leadership-deprioritization">5. Leadership deprioritization</a></h3>
-<p>Nodes can configure longer election timeouts to reduce the probability of
-becoming leader:</p>
-<pre><code class="language-rust ignore">ConsensusConfig::default().deprioritize_leadership()</code></pre>
-<p>This is used by collection readers, which prefer to leave leadership to writer
-nodes.</p>
+<h3 id="5-leadership-preference"><a class="header" href="#5-leadership-preference">5. Leadership preference</a></h3>
+<p>Nodes declare a <code>LeadershipPreference</code> that controls election behavior and
+quorum participation:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variant</th><th>Self-nominate?</th><th>Votes in elections?</th><th>Counts toward commit quorum?</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Normal</code></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>Reluctant</code></td><td>Yes (slower)</td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>Observer</code></td><td>Never</td><td>No (abstains)</td><td>No (abstains)</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>Reluctant</code> nodes use longer election timeouts (multiplied by a configurable
+factor), reducing their likelihood of becoming leader but still participating
+fully in quorum. <code>Observer</code> nodes never self-nominate and abstain from all
+votes, so they never inflate the quorum denominator.</p>
+<p>Collection readers use <code>Observer</code> to ensure that only writer nodes fill the
+voting committee. Without this, a group with 2 writers and 10 readers could
+have its 5-slot committee filled by readers, gating write latency on reader
+acknowledgment. See the
+<a href="#writerreader-pattern">Writer/Reader Pattern</a> for
+details.</p>
 <h3 id="6-bootstrap-delay"><a class="header" href="#6-bootstrap-delay">6. Bootstrap delay</a></h3>
 <p>The first term (<code>Term::zero()</code>) adds an extra <code>bootstrap_delay</code> (default 3s)
 to the election timeout. This gives all nodes time to start, discover each

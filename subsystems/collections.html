@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f5a1961f.js";
+            window.path_to_searchindex_js = "../searchindex-5adc9aff.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f57b06e6.js"></script>
@@ -287,9 +287,13 @@ This adds an authentication requirement to the underlying Raft group — only
 peers carrying valid tickets can join and replicate data.</p>
 <pre><code class="language-rust ignore">use mosaik::CollectionConfig;
 use mosaik::collections::{Map, StoreId};
+use mosaik::tickets::{Jwt, Hs256};
+
+let validator = Jwt::with_key(Hs256::new(secret))
+    .allow_issuer("my-app");
 
 let config = CollectionConfig::default()
-    .require_ticket(my_validator);
+    .require_ticket(validator);
 
 let writer = Map::&lt;String, u64&gt;::writer_with_config(&amp;network, store_id, config);</code></pre>
 <p>Call <code>require_ticket</code> multiple times to require multiple types of tickets.
@@ -300,15 +304,15 @@ of the collection must use the same validators in the same order, otherwise
 they will derive different group IDs and will not see each other’s changes.</p>
 </blockquote>
 <p>The <code>collection!</code> macro supports <code>require_ticket</code> directly:</p>
-<pre><code class="language-rust ignore">use mosaik::*;
-use mosaik::tdx::Tdx;
+<pre><code class="language-rust ignore">use mosaik::tickets::{Jwt, Hs256};
 
-declare::collection!(
+mosaik::collection!(
     pub SecureMap = mosaik::collections::Map&lt;String, String&gt;,
     "secure.store",
-    require_ticket: Tdx::new().require_mrtd("..."),
+    require_ticket: Jwt::with_key(Hs256::new(secret))
+        .allow_issuer("my-app"),
 );</code></pre>
-<p>See <a href="discovery/tickets.html">Auth Tickets</a> for the <code>TicketValidator</code> trait and
+<p>See <a href="discovery/tickets.html">Auth Tickets</a> for the full JWT API and
 <a href="tee/tdx.html">TEE &gt; TDX</a> for TDX-specific validation.</p>
 <h2 id="storeid-and-group-identity"><a class="header" href="#storeid-and-group-identity">StoreId and group identity</a></h2>
 <p>Each collection derives its Raft group identity from:</p>

@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-f5a1961f.js";
+            window.path_to_searchindex_js = "../../searchindex-5adc9aff.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -239,11 +239,14 @@ multiple times to require multiple types of tickets — peers must satisfy
 all configured validators. When the earliest ticket expires, the producer
 <strong>proactively disconnects</strong> the consumer — no reconnection attempt is
 needed:</p>
-<pre><code class="language-rust ignore">use mosaik::primitives::{TicketValidator, Expiration, InvalidTicket};
+<pre><code class="language-rust ignore">use mosaik::tickets::{Jwt, Hs256};
+
+let validator = Jwt::with_key(Hs256::new(secret))
+    .allow_issuer("my-app");
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
-    .require_ticket(MyJwtValidator::new())
+    .require_ticket(validator)
     .build()?;</code></pre>
 <p>The <code>TicketValidator</code> trait:</p>
 <pre><code class="language-rust ignore">pub trait TicketValidator: Send + Sync + 'static {

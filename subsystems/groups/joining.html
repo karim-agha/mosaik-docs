@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-f5a1961f.js";
+            window.path_to_searchindex_js = "../../searchindex-5adc9aff.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -277,42 +277,27 @@ extra layer of verification, call <code>.require_ticket()</code> with a
 <code>TicketValidator</code> implementation. During bonding, each peer’s discovery
 tickets are checked against the validator – only peers carrying a valid
 ticket of the expected class are allowed to form bonds.</p>
-<pre><code class="language-rust ignore">use mosaik::primitives::TicketValidator;
-use mosaik::discovery::PeerEntry;
-use mosaik::{UniqueId, id, Expiration, InvalidTicket};
+<pre><code class="language-rust ignore">use mosaik::tickets::{Jwt, Hs256};
 
-struct MyAuth;
-
-impl TicketValidator for MyAuth {
-    fn class(&amp;self) -&gt; UniqueId {
-        id!("my-app.group-auth")
-    }
-
-    fn signature(&amp;self) -&gt; UniqueId {
-        // Must be identical across all group members.
-        // Include any configuration that affects validation.
-        id!("my-app.group-auth.v1")
-    }
-
-    fn validate(
-        &amp;self,
-        ticket: &amp;[u8],
-        peer: &amp;PeerEntry,
-    ) -&gt; Result&lt;Expiration, InvalidTicket&gt; {
-        if ticket.is_empty() {
-            return Err(InvalidTicket);
-        }
-        // Application-specific validation logic.
-        // Return Expiration::Never for non-expiring tickets,
-        // or Expiration::At(datetime) for time-limited ones.
-        Ok(Expiration::Never)
-    }
-}
+let validator = Jwt::with_key(Hs256::new(secret))
+    .allow_issuer("my-app");
 
 let group = network.groups()
-    .with_key(key)
+    .with_key(GroupKey::from(&amp;validator))
     .with_state_machine(MyStateMachine::new())
-    .require_ticket(MyAuth)
+    .require_ticket(validator)
+    .join();</code></pre>
+<p>For asymmetric keys (e.g. ECDSA P-256):</p>
+<pre><code class="language-rust ignore">use mosaik::tickets::{Jwt, Es256};
+
+// Compressed P-256 public key (33 bytes, SEC1 format)
+let validator = Jwt::with_key(Es256::hex("02abcd..."))
+    .allow_issuer("my-app");
+
+let group = network.groups()
+    .with_key(GroupKey::from(&amp;validator))
+    .with_state_machine(MyStateMachine::new())
+    .require_ticket(validator)
     .join();</code></pre>
 <h3 id="key-points"><a class="header" href="#key-points">Key points</a></h3>
 <ul>

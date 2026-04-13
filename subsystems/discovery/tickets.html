@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-f5a1961f.js";
+            window.path_to_searchindex_js = "../../searchindex-5adc9aff.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -201,14 +201,18 @@ carry a valid JWT.</p>
 <p>The discovery system does <strong>not</strong> interpret ticket data. It simply
 stores, signs, and propagates tickets alongside the rest of the peer
 entry. Validation logic lives entirely in application code – typically
-inside a producer’s <code>require</code> predicate.</p>
+via a <code>TicketValidator</code> implementation.</p>
+<blockquote>
+<p><strong>Module location:</strong> Ticket types live in <code>mosaik::tickets</code> (the
+top-level <code>tickets</code> module), not in <code>mosaik::primitives</code>.</p>
+</blockquote>
 <h3 id="ticket-identity"><a class="header" href="#ticket-identity">Ticket identity</a></h3>
 <p>Each ticket has a deterministic <code>id()</code> derived from its <code>class</code> and
 <code>data</code>. This ID is used as the key in the peer entry’s ticket map, so
 adding the same ticket twice is idempotent.</p>
 <h2 id="creating-and-attaching-tickets"><a class="header" href="#creating-and-attaching-tickets">Creating and attaching tickets</a></h2>
 <p>Construct a <code>Ticket</code> and add it through the <code>Discovery</code> handle:</p>
-<pre><code class="language-rust ignore">use mosaik::{Ticket, UniqueId, id, Bytes};
+<pre><code class="language-rust ignore">use mosaik::{tickets::Ticket, UniqueId, id, Bytes};
 
 const MY_TICKET_CLASS: UniqueId = id!("my-app.auth");
 
@@ -229,7 +233,7 @@ network.discovery().remove_ticket(ticket_id);
 // Remove all tickets of a given class
 network.discovery().remove_tickets_of(MY_TICKET_CLASS);</code></pre>
 <h2 id="querying-tickets-on-a-peer-entry"><a class="header" href="#querying-tickets-on-a-peer-entry">Querying tickets on a peer entry</a></h2>
-<p>When you receive a <code>PeerEntry</code> (for example, inside an <code>require</code>
+<p>When you receive a <code>PeerEntry</code> (for example, inside a <code>require</code>
 closure), five methods are available:</p>
 <div class="table-wrapper">
 <table>
@@ -252,21 +256,49 @@ These closure-based methods are convenient for stream <code>require</code> predi
 the <code>Expiration</code> with the longest validity among all matching tickets, or
 <code>InvalidTicket</code> if none pass. This is used internally by the groups
 subsystem for expiration-aware bond management.</p>
-<h2 id="example-jwt-authenticated-streams"><a class="header" href="#example-jwt-authenticated-streams">Example: JWT-authenticated streams</a></h2>
-<p>Mosaik ships a built-in [<code>Jwt</code>] that covers the common
-case of HMAC- or RSA-signed JWTs. No extra dependencies or custom trait
-implementations needed for the validating side.</p>
-<h3 id="1-set-up-the-validator"><a class="header" href="#1-set-up-the-validator">1. Set up the validator</a></h3>
-<pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
-use mosaik::tickets::jwt::Jwt;
-use sha2::Sha256;
+<h2 id="built-in-jwt-validator"><a class="header" href="#built-in-jwt-validator">Built-in JWT validator</a></h2>
+<p>Mosaik ships a built-in [<code>Jwt</code>] validator and [<code>JwtTicketBuilder</code>] that
+cover the common case of JWT-authenticated peers. No external crate
+imports are needed.</p>
+<h3 id="supported-algorithms"><a class="header" href="#supported-algorithms">Supported algorithms</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Verifying key</th><th>Signing key</th><th>Algorithm</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Hs256</code></td><td><code>Hs256</code></td><td>HMAC-SHA256 (symmetric)</td></tr>
+<tr><td><code>Hs384</code></td><td><code>Hs384</code></td><td>HMAC-SHA384 (symmetric)</td></tr>
+<tr><td><code>Hs512</code></td><td><code>Hs512</code></td><td>HMAC-SHA512 (symmetric)</td></tr>
+<tr><td><code>Es256</code></td><td><code>Es256SigningKey</code></td><td>ECDSA P-256</td></tr>
+<tr><td><code>Es256k</code></td><td><code>Es256kSigningKey</code></td><td>ECDSA secp256k1</td></tr>
+<tr><td><code>Es384</code></td><td><code>Es384SigningKey</code></td><td>ECDSA P-384</td></tr>
+<tr><td><code>Es512</code></td><td><code>Es512SigningKey</code></td><td>ECDSA P-521</td></tr>
+<tr><td><code>EdDsa</code></td><td><code>EdDsaSigningKey</code></td><td>Ed25519</td></tr>
+</tbody>
+</table>
+</div>
+<p>For HMAC algorithms the same key type is used for both signing and
+verification (symmetric). For ECDSA and EdDSA the signing key is a
+private key and the verifying key is the corresponding public key.</p>
+<p>All types live in <code>mosaik::tickets</code>.</p>
+<h3 id="1-set-up-the-validator-hmac"><a class="header" href="#1-set-up-the-validator-hmac">1. Set up the validator (HMAC)</a></h3>
+<pre><code class="language-rust ignore">use mosaik::tickets::{Jwt, Hs256};
 
-let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
+let validator = Jwt::with_key(Hs256::hex(
+        "87e50edd90e2f9d53a7f2a9bd51c1069a454b827f0e1002577c54e1c2a598568"
+    ))
+    .allow_issuer("my-app")
+    .allow_audience("stream");</code></pre>
+<h3 id="1b-set-up-the-validator-ecdsa"><a class="header" href="#1b-set-up-the-validator-ecdsa">1b. Set up the validator (ECDSA)</a></h3>
+<pre><code class="language-rust ignore">use mosaik::tickets::{Jwt, Es256};
 
-let validator = Jwt::with_key(key)
-    .allow_issuer("my-app")   // require iss == "my-app"
-    .allow_audience("stream"); // require aud == "stream" (optional)</code></pre>
-<p>Builder methods (all optional, all chainable):</p>
+// Compressed P-256 public key (33 bytes, SEC1 format)
+let validator = Jwt::with_key(Es256::hex(
+        "0298a82ebe69ad57e0f7d5c2809a05188ff58572c5a5009015f26643f91e0d3236"
+    ))
+    .allow_issuer("my-app");</code></pre>
+<p>Validator builder methods (all optional, all chainable):</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -278,47 +310,62 @@ let validator = Jwt::with_key(key)
 <tr><td><code>.require_subject(s)</code></td><td>Override default subject (default: peer id in lowercase hex)</td></tr>
 <tr><td><code>.require_claim(name, value)</code></td><td>Require a custom private claim; multiple calls compose as AND</td></tr>
 <tr><td><code>.allow_non_expiring()</code></td><td>Accept JWTs without an <code>exp</code> claim</td></tr>
+<tr><td><code>.max_lifetime(duration)</code></td><td>Reject tokens with <code>exp - now</code> exceeding this duration</td></tr>
+<tr><td><code>.max_age(duration)</code></td><td>Require <code>iat</code> and reject tokens older than this duration</td></tr>
 </tbody>
 </table>
 </div>
-<p>The validator checks <code>iss</code>, <code>sub</code>, <code>nbf</code>, <code>exp</code>, <code>aud</code>, and any custom
-claims you specify. Tokens with overflowed or non-representable <code>exp</code>
-timestamps are rejected rather than silently treated as non-expiring.</p>
-<h3 id="2-consumer-attach-a-jwt-ticket"><a class="header" href="#2-consumer-attach-a-jwt-ticket">2. Consumer: attach a JWT ticket</a></h3>
-<p>The consumer signs a JWT and publishes it via discovery. The ticket
-class must be <code>Jwt::CLASS</code>:</p>
-<pre><code class="language-rust ignore">use hmac::{Hmac, digest::KeyInit};
-use jwt::{Claims, RegisteredClaims, SignWithKey};
-use mosaik::{Ticket, tickets::jwt::Jwt};
-use sha2::Sha256;
+<p>The validator checks <code>iss</code>, <code>sub</code>, <code>nbf</code>, <code>exp</code>, <code>aud</code>, <code>iat</code>, and any
+custom claims you specify. Tokens with overflowed or non-representable
+<code>exp</code> timestamps are rejected rather than silently treated as
+non-expiring.</p>
+<h3 id="2-issue-tickets-with-jwtticketbuilder"><a class="header" href="#2-issue-tickets-with-jwtticketbuilder">2. Issue tickets with <code>JwtTicketBuilder</code></a></h3>
+<p><code>JwtTicketBuilder</code> is the issuing counterpart to <code>Jwt</code>. It signs JWTs
+and wraps them as <code>Ticket</code> values ready for discovery:</p>
+<pre><code class="language-rust ignore">use mosaik::tickets::{Hs256, JwtTicketBuilder};
 
-let key: Hmac&lt;Sha256&gt; = Hmac::new_from_slice(b"my-shared-secret").unwrap();
+let builder = JwtTicketBuilder::new(Hs256::new(secret))
+    .issuer("my-app");
 
-let jwt_string = Claims::new(RegisteredClaims {
-    issuer: Some("my-app".into()),
-    subject: Some(peer_id.to_string().to_lowercase()),
-    expiration: Some(
-        (chrono::Utc::now() + chrono::Duration::hours(1))
-            .timestamp() as u64,
-    ),
-    ..Default::default()
-})
-.sign_with_key(&amp;key)
-.unwrap();
-
-let ticket = Ticket::new(
-    Jwt::CLASS,
-    jwt_string.into(),
-);
+let ticket = builder.build(&amp;peer_id, Expiration::At(expiration_time));
 network.discovery().add_ticket(ticket);</code></pre>
-<p>Because tickets propagate through gossip, the producer will see them
-when the consumer’s updated <code>PeerEntry</code> arrives.</p>
+<p>For asymmetric algorithms, use the signing key type:</p>
+<pre><code class="language-rust ignore">use mosaik::tickets::{Es256SigningKey, JwtTicketBuilder};
+
+let sk = Es256SigningKey::random();
+
+let builder = JwtTicketBuilder::new(sk)
+    .issuer("my-app");
+
+let ticket = builder.build(&amp;peer_id, Expiration::At(expiration_time));
+network.discovery().add_ticket(ticket);</code></pre>
+<p>Builder methods (all optional, all chainable):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>.issuer(s)</code></td><td>Set the <code>iss</code> claim</td></tr>
+<tr><td><code>.subject(s)</code></td><td>Override the <code>sub</code> claim (default: peer id in lower hex)</td></tr>
+<tr><td><code>.audience(s)</code></td><td>Set the <code>aud</code> claim</td></tr>
+<tr><td><code>.issued_at(datetime)</code></td><td>Override <code>iat</code> (default: current time)</td></tr>
+<tr><td><code>.not_before(datetime)</code></td><td>Set the <code>nbf</code> claim</td></tr>
+<tr><td><code>.token_id(jti)</code></td><td>Set the <code>jti</code> claim</td></tr>
+<tr><td><code>.claim(name, value)</code></td><td>Add a custom claim (standard names route to their field)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Because tickets propagate through gossip, the remote peer will see them
+when the updated <code>PeerEntry</code> arrives.</p>
 <h3 id="3-validate-tickets-on-streams"><a class="header" href="#3-validate-tickets-on-streams">3. Validate tickets on streams</a></h3>
 <p>Use <code>require_ticket</code> on either the producer or consumer builder.
 It validates at connection time <strong>and</strong> proactively disconnects peers
 when their ticket expires. Call it multiple times to require multiple
 types of tickets — peers must satisfy all configured validators:</p>
-<pre><code class="language-rust ignore">let validator = Jwt::with_key(key.clone())
+<pre><code class="language-rust ignore">use mosaik::tickets::{Jwt, Hs256};
+
+let validator = Jwt::with_key(Hs256::new(secret))
     .allow_issuer("my-app");
 
 // Producer side — validates incoming consumers
@@ -333,16 +380,19 @@ let consumer = network.streams()
     .require_ticket(validator.clone())
     .build();</code></pre>
 <p>The <code>stream!</code> macro supports this via <code>require_ticket</code>:</p>
-<pre><code class="language-rust ignore">use mosaik::{declare, tickets::jwt::Jwt};
+<pre><code class="language-rust ignore">use mosaik::{declare, tickets::{Jwt, Hs256}};
 
 declare::stream!(
     pub AuthFeed = MyDatum, "auth.feed",
-    require_ticket: Jwt::with_key(key).allow_issuer("my-app"),
+    require_ticket: Jwt::with_key(Hs256::new(secret))
+        .allow_issuer("my-app"),
 );</code></pre>
 <p>See <a href="../streams.html#the-stream-macro-recommended">Streams &gt; The <code>stream!</code> macro</a>
 for full macro syntax.</p>
 <h3 id="4-validate-tickets-on-groups"><a class="header" href="#4-validate-tickets-on-groups">4. Validate tickets on groups</a></h3>
-<pre><code class="language-rust ignore">let validator = Jwt::with_key(key.clone())
+<pre><code class="language-rust ignore">use mosaik::tickets::{Jwt, Hs256};
+
+let validator = Jwt::with_key(Hs256::new(secret))
     .allow_issuer("my-app");
 
 let group = network.groups()
@@ -356,7 +406,7 @@ configuration automatically derive the same group key.</p>
 <h3 id="5-using-require-closures-alternative"><a class="header" href="#5-using-require-closures-alternative">5. Using <code>require</code> closures (alternative)</a></h3>
 <p>For quick prototyping without expiration tracking, use <code>has_valid_ticket</code>
 inside a <code>require</code> predicate:</p>
-<pre><code class="language-rust ignore">use mosaik::tickets::jwt::Jwt;
+<pre><code class="language-rust ignore">use mosaik::tickets::Jwt;
 
 let producer = network.streams()
     .producer::&lt;MyDatum&gt;()
@@ -436,30 +486,18 @@ credentials expire – no reconnection round-trip required.</p>
 <tr><td>Proactive expiration disconnect</td><td>Yes</td><td>Yes</td><td>No (next reconnect)</td></tr>
 <tr><td>Group ID derivation</td><td>Yes (via <code>signature()</code>)</td><td>Yes (via <code>signature()</code>)</td><td>Not applicable</td></tr>
 <tr><td>Complexity</td><td>Zero — built in</td><td>Implement a trait</td><td>Inline closure</td></tr>
-<tr><td>Best for</td><td>JWT auth (HMAC / RSA / EC)</td><td>Custom credential types</td><td>Quick prototyping</td></tr>
+<tr><td>Best for</td><td>JWT auth (HMAC / ECDSA / EdDSA)</td><td>Custom credential types</td><td>Quick prototyping</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="custom-validators"><a class="header" href="#custom-validators">Custom validators</a></h2>
 <p>If you need a credential scheme other than JWTs, implement the
-<code>TicketValidator</code> trait directly. The three methods to implement:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Method</th><th>Purpose</th></tr>
-</thead>
-<tbody>
-<tr><td><code>class()</code></td><td>Returns the <code>UniqueId</code> matching your ticket class. Only tickets of this class are passed to <code>validate()</code>.</td></tr>
-<tr><td><code>signature()</code></td><td>Deterministic ID derived from the validator type <strong>and</strong> config. All group members must produce the same signature.</td></tr>
-<tr><td><code>validate()</code></td><td>Receives raw ticket bytes and the <code>PeerEntry</code>. Returns <code>Ok(Expiration)</code> on success or <code>Err(InvalidTicket)</code> on failure.</td></tr>
-</tbody>
-</table>
-</div>
+<code>TicketValidator</code> trait directly:</p>
 <pre><code class="language-rust ignore">use mosaik::{
-    Expiration, InvalidTicket, UniqueId,
+    UniqueId,
     discovery::PeerEntry,
     id,
-    tickets::TicketValidator,
+    tickets::{Expiration, InvalidTicket, TicketValidator},
 };
 
 pub struct MyValidator {
@@ -494,6 +532,27 @@ impl TicketValidator for MyValidator {
     .producer::&lt;MyDatum&gt;()
     .require_ticket(MyValidator { /* ... */ })
     .build()?;</code></pre>
+<h2 id="tdx-hardware-attestation"><a class="header" href="#tdx-hardware-attestation">TDX hardware attestation</a></h2>
+<p>Mosaik provides a built-in <code>Tdx</code> ticket validator for Intel TDX
+(Trust Domain Extensions) hardware attestation. TDX tickets contain
+a hardware-signed quote that cryptographically proves the code running
+inside the trust domain, allowing peers to verify each other’s
+integrity without trusting the host operating system.</p>
+<pre><code class="language-rust ignore">use mosaik::tickets::Tdx;
+
+let validator = Tdx::new()
+    .require_mrtd("a1b2c3d4...")   // expected MR_TD measurement
+    .require_rtmr0("e5f6a7b8..."); // expected RTMR0
+
+let group = network.groups()
+    .with_key(GroupKey::from(&amp;validator))
+    .with_state_machine(MyMachine::default())
+    .require_ticket(validator)
+    .join();</code></pre>
+<p>TDX tickets can be combined with JWT tickets by calling
+<code>require_ticket</code> multiple times — peers must satisfy <strong>all</strong> validators.</p>
+<p>See <a href="../tee/tdx.html">TEE &gt; TDX</a> for the full TDX API, measurement
+types, image builders, and multi-variant support.</p>
 <h2 id="design-notes"><a class="header" href="#design-notes">Design notes</a></h2>
 <ul>
 <li>

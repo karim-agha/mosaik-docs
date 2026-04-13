@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f5a1961f.js";
+            window.path_to_searchindex_js = "../searchindex-5adc9aff.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f57b06e6.js"></script>
@@ -252,8 +252,8 @@ string (hashed with blake3).</p>
 <hr>
 <h2 id="ticket"><a class="header" href="#ticket"><code>Ticket</code></a></h2>
 <p>An opaque, typed credential that peers attach to their discovery entry for
-authorization purposes.</p>
-<pre><code class="language-rust ignore">use mosaik::{Ticket, UniqueId, id, Bytes};
+authorization purposes. Ticket types live in the <code>mosaik::tickets</code> module.</p>
+<pre><code class="language-rust ignore">use mosaik::{tickets::Ticket, UniqueId, id, Bytes};
 
 const MY_AUTH: UniqueId = id!("my-app.auth");
 
@@ -272,8 +272,17 @@ let id: UniqueId = ticket.id(); // deterministic, derived from class + data</cod
 </div>
 <p>Tickets are stored in a peer’s <code>PeerEntry</code> and propagated via gossip and
 catalog sync. The discovery system never interprets ticket data –
-validation is done in application code (e.g. inside a producer’s
-<code>require</code> predicate).</p>
+validation is done via <code>TicketValidator</code> implementations or <code>require</code>
+closures.</p>
+<p>The <code>mosaik::tickets</code> module also provides:</p>
+<ul>
+<li><strong><code>Jwt</code></strong> — built-in JWT validator supporting HS256/384/512,
+ES256/256K/384/512, and EdDSA.</li>
+<li><strong><code>JwtTicketBuilder</code></strong> — signs and issues JWT tickets for peers.</li>
+<li><strong><code>TicketValidator</code></strong> trait — implement for custom credential schemes.</li>
+<li>Algorithm-specific key types (<code>Hs256</code>, <code>Es256</code>, <code>Es256SigningKey</code>,
+<code>EdDsa</code>, <code>EdDsaSigningKey</code>, etc.).</li>
+</ul>
 <p>See <a href="../subsystems/discovery/tickets.html">Discovery &gt; Auth Tickets</a> for
 a full walkthrough.</p>
 <hr>

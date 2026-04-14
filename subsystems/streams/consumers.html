@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-6e59478a.js";
+            window.path_to_searchindex_js = "../../searchindex-9e72bff4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -245,7 +245,22 @@ let consumer = network.streams()
     .consumer::&lt;PriceUpdate&gt;()
     .require(|peer| peer.tags().contains(&amp;"primary".into()))
     .build();</code></pre>
-<p>The predicate receives a <code>&amp;PeerEntry</code> and is evaluated each time a new producer is discovered.</p>
+<p>The predicate receives a <code>&amp;PeerInfo</code> (which implements <code>Deref&lt;Target = PeerEntry&gt;</code>, so existing calls like <code>peer.tags()</code> work unchanged) and is evaluated each time a new producer is discovered.</p>
+<h3 id="rtt-based-filtering"><a class="header" href="#rtt-based-filtering">RTT-based filtering</a></h3>
+<p>Use <code>rtt_below()</code> to only subscribe to producers whose round-trip time
+is below a threshold:</p>
+<pre><code class="language-rust ignore">use std::time::Duration;
+
+let consumer = network.streams()
+    .consumer::&lt;PriceUpdate&gt;()
+    .require(|peer| peer.rtt_below(Duration::from_millis(100)))
+    .build();</code></pre>
+<p>When a new producer is discovered and no RTT data exists yet, the
+consumer automatically pings the producer to measure RTT before
+attempting a subscription. This avoids wasteful connections to peers
+that will fail the RTT check. Predicates are also re-evaluated on
+catalog changes, so if a producer’s RTT degrades over time, the
+consumer disconnects.</p>
 <h3 id="ticket-based-authentication"><a class="header" href="#ticket-based-authentication">Ticket-Based Authentication</a></h3>
 <p>Use <code>require_ticket</code> to only subscribe to producers that carry a valid
 ticket. Call it multiple times to require multiple types of tickets —

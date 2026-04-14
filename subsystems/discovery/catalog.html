@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-6e59478a.js";
+            window.path_to_searchindex_js = "../../searchindex-9e72bff4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -255,15 +255,30 @@ let peer_id = my_entry.peer_id();</code></pre>
 </ol>
 <p>The periodic gossip re-announce (every ~15s by default) keeps entries fresh. When a node departs gracefully, it broadcasts a departure message; ungraceful departures are detected by staleness.</p>
 <h2 id="using-catalog-for-filtering"><a class="header" href="#using-catalog-for-filtering">Using Catalog for Filtering</a></h2>
-<p>The catalog is commonly used to filter peers in Streams:</p>
+<p>The catalog is commonly used to filter peers in Streams. The <code>require</code>
+predicate receives a <code>PeerInfo</code>, which wraps <code>PeerEntry</code> with
+locally-observed metrics like RTT. Since <code>PeerInfo</code> implements
+<code>Deref&lt;Target = PeerEntry&gt;</code>, existing code that accesses tags, streams,
+or tickets works unchanged:</p>
 <pre><code class="language-rust ignore">// Producer: only accept consumers with specific tags
 let producer = network.streams().producer::&lt;Order&gt;()
-    .require(|peer| peer.tags.contains(&amp;"authorized".into()))
+    .require(|peer| peer.tags().contains(&amp;"authorized".into()))
     .build()?;
 
 // Consumer: only subscribe to specific producers
 let consumer = network.streams().consumer::&lt;Order&gt;()
-    .require(|peer| peer.tags.contains(&amp;"primary".into()))
+    .require(|peer| peer.tags().contains(&amp;"primary".into()))
+    .build();
+
+// Filter by RTT — reject peers with latency above 200ms
+let producer = network.streams().producer::&lt;Order&gt;()
+    .require(|peer| peer.rtt_below(Duration::from_millis(200)))
+    .build()?;
+
+// Combine RTT and tag requirements (AND-composed)
+let consumer = network.streams().consumer::&lt;Order&gt;()
+    .require(|peer| peer.tags().contains(&amp;"primary".into()))
+    .require(|peer| peer.rtt_below(Duration::from_millis(100)))
     .build();</code></pre>
 <h2 id="internal-structure"><a class="header" href="#internal-structure">Internal Structure</a></h2>
 <p>The catalog uses <code>im::OrdMap</code> — an immutable, persistent ordered map — for its internal storage. This provides:</p>

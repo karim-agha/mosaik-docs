@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-6e59478a.js";
+            window.path_to_searchindex_js = "../searchindex-9e72bff4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f57b06e6.js"></script>
@@ -214,6 +214,8 @@ let network = Network::builder(network_id)
             .with_announce_jitter(0.3)
             .with_max_time_drift(Duration::from_secs(5))
             .with_events_backlog(200)
+            .with_max_rtt(Duration::from_millis(500))
+            .with_rtt_probe_interval(Duration::from_secs(15))
     )
     .build()
     .await?;</code></pre>
@@ -231,12 +233,58 @@ let network = Network::builder(network_id)
 <tr><td><code>purge_after</code></td><td>300s</td><td>Duration after which stale entries are purged</td></tr>
 <tr><td><code>max_time_drift</code></td><td>10s</td><td>Maximum acceptable clock drift between peers</td></tr>
 <tr><td><code>events_backlog</code></td><td>100</td><td>Past events retained in event broadcast channel</td></tr>
+<tr><td><code>rtt_probe_interval</code></td><td>30s</td><td>Interval for RTT ping probes to cataloged peers</td></tr>
+<tr><td><code>max_rtt</code></td><td><code>None</code></td><td>Maximum acceptable RTT for peers (see below)</td></tr>
 <tr><td><code>dht_publish_interval</code></td><td>300s</td><td>How often to publish to the DHT (<code>None</code> to disable)</td></tr>
 <tr><td><code>dht_poll_interval</code></td><td>60s</td><td>How often to poll the DHT for peers (<code>None</code> to disable)</td></tr>
 </tbody>
 </table>
 </div>
 <p>Both <code>with_bootstrap()</code> and <code>with_tags()</code> are <strong>additive</strong> — calling them multiple times adds to the list.</p>
+<h3 id="rtt-tracking"><a class="header" href="#rtt-tracking">RTT tracking</a></h3>
+<p>The discovery system continuously measures round-trip times to cataloged
+peers using periodic ping probes (controlled by <code>rtt_probe_interval</code>).
+RTT samples are also collected passively from active connections (group
+bonds, stream producers and consumers).</p>
+<p>Smoothing uses EWMA following RFC 6298 (α = 1/8, β = 1/4) so that
+transient spikes are absorbed while sustained latency changes are
+reflected.</p>
+<h4 id="network-wide-rtt-filtering-with-max_rtt"><a class="header" href="#network-wide-rtt-filtering-with-max_rtt">Network-wide RTT filtering with <code>max_rtt</code></a></h4>
+<p>When <code>max_rtt</code> is set in the discovery config, the catalog filters out
+peers whose smoothed RTT exceeds the threshold. <strong>High-latency peers
+become invisible to the local node</strong> — they will not appear in
+<code>catalog.peers()</code>, <code>catalog.get()</code>, or <code>catalog.peers_count()</code>, and
+consequently will not be discovered by stream consumers, connected to
+by stream producers, or considered for group bond formation. This is a
+hard cut-off at the discovery layer that affects all subsystems:</p>
+<pre><code class="language-rust ignore">let network = Network::builder(network_id)
+    .with_discovery(
+        discovery::Config::builder()
+            .with_max_rtt(Duration::from_millis(300))
+    )
+    .build()
+    .await?;
+
+// catalog.peers() only returns peers with RTT ≤ 300ms
+// (peers with no RTT data are included optimistically)</code></pre>
+<p>Peers with no RTT measurements are still included (optimistic
+admission) — they are not excluded until the discovery system has
+measured their latency. This avoids rejecting newly discovered peers
+before they have had a chance to establish direct connections.</p>
+<blockquote>
+<p><strong>Note:</strong> Use <code>max_rtt</code> when you want a blanket latency requirement
+for the entire node. For per-stream thresholds (e.g. a fast stream
+with strict latency alongside a best-effort stream), use
+<code>require(|peer| peer.rtt_below(...))</code> on individual producers or
+consumers instead.</p>
+</blockquote>
+<h4 id="per-stream-rtt-filtering-with-require"><a class="header" href="#per-stream-rtt-filtering-with-require">Per-stream RTT filtering with <code>require()</code></a></h4>
+<p>For finer-grained control, RTT data is also available to <code>require()</code>
+predicates on individual producers and consumers via the <code>PeerInfo</code>
+type — see
+<a href="./streams/producers.html#rtt-based-filtering">Producers &gt; RTT-based filtering</a>
+and
+<a href="./streams/consumers.html#rtt-based-filtering">Consumers &gt; RTT-based filtering</a>.</p>
 <h2 id="accessing-discovery"><a class="header" href="#accessing-discovery">Accessing Discovery</a></h2>
 <pre><code class="language-rust ignore">let discovery = network.discovery();</code></pre>
 <p>The <code>Discovery</code> handle is cheap to clone.</p>

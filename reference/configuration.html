@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-6e59478a.js";
+            window.path_to_searchindex_js = "../searchindex-9e72bff4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f57b06e6.js"></script>
@@ -235,6 +235,8 @@ a stable, well-known peer ID across restarts.</p>
 <tr><td><code>max_time_drift</code></td><td><code>Duration</code></td><td><code>10s</code></td><td>Maximum acceptable timestamp drift</td></tr>
 <tr><td><code>announce_interval</code></td><td><code>Duration</code></td><td><code>15s</code></td><td>Interval between presence announcements</td></tr>
 <tr><td><code>announce_jitter</code></td><td><code>f32</code></td><td><code>0.5</code></td><td>Max jitter factor on announce interval</td></tr>
+<tr><td><code>rtt_probe_interval</code></td><td><code>Duration</code></td><td><code>30s</code></td><td>Interval for RTT ping probes to peers</td></tr>
+<tr><td><code>max_rtt</code></td><td><code>Option&lt;Duration&gt;</code></td><td><code>None</code></td><td>Maximum acceptable peer RTT</td></tr>
 <tr><td><code>graceful_departure_window</code></td><td><code>Duration</code></td><td><code>500ms</code></td><td>Wait for departure gossip to propagate</td></tr>
 </tbody>
 </table>
@@ -346,7 +348,9 @@ to become leader. Used by collection readers.</p>
 │   ├── purge_after
 │   ├── max_time_drift
 │   ├── announce_interval
-│   └── announce_jitter
+│   ├── announce_jitter
+│   ├── rtt_probe_interval
+│   └── max_rtt
 │
 ├── streams::Config
 │   └── backoff

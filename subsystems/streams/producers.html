@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-6e59478a.js";
+            window.path_to_searchindex_js = "../../searchindex-9e72bff4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-f57b06e6.js"></script>
@@ -268,6 +268,25 @@ let producer = network.streams()
 </ul>
 <p>This is the same trait used by <a href="../groups.html">Groups</a> for bond
 authentication.</p>
+<h3 id="rtt-based-filtering"><a class="header" href="#rtt-based-filtering">RTT-based filtering</a></h3>
+<p>The <code>require</code> predicate receives a <code>PeerInfo</code>, which wraps the peer’s
+<code>PeerEntry</code> with locally-observed metrics like round-trip time. Use
+<code>rtt_below()</code> to reject consumers whose latency exceeds a threshold:</p>
+<pre><code class="language-rust ignore">use std::time::Duration;
+
+let producer = network.streams()
+    .producer::&lt;MyDatum&gt;()
+    .require(|peer| peer.rtt_below(Duration::from_millis(200)))
+    .build()?;</code></pre>
+<p><code>PeerInfo</code> implements <code>Deref&lt;Target = PeerEntry&gt;</code>, so existing
+predicates that call methods like <code>peer.tags()</code> continue to work
+unchanged.</p>
+<p>RTT is sampled from the QUIC connection at accept time, so the
+producer always has RTT data when evaluating the predicate — there is
+no “optimistic admission” on the producer side. Active consumers are
+also re-evaluated when the discovery catalog updates; if RTT degrades
+over time, consumers that no longer satisfy the predicate are
+disconnected.</p>
 <h3 id="using-require-with-closures"><a class="header" href="#using-require-with-closures">Using <code>require</code> with closures</a></h3>
 <p>For simpler cases, you can validate tickets inside a <code>require</code>
 predicate using the <code>has_valid_ticket</code> helper. This approach does

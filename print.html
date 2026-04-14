@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9e72bff4.js";
+            window.path_to_searchindex_js = "searchindex-443e8bf2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-f57b06e6.js"></script>
+        <script src="toc-6d32b89e.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1399,6 +1399,7 @@ let network = Network::builder("my-app".into())
 <tr><td><code>with_discovery()</code></td><td><code>ConfigBuilder</code></td><td>Defaults</td><td>Discovery subsystem configuration</td></tr>
 <tr><td><code>with_streams()</code></td><td><code>ConfigBuilder</code></td><td>Defaults</td><td>Streams subsystem configuration</td></tr>
 <tr><td><code>with_groups()</code></td><td><code>ConfigBuilder</code></td><td>Defaults</td><td>Groups subsystem configuration</td></tr>
+<tr><td><code>with_prometheus_addr()</code></td><td><code>SocketAddr</code></td><td>None</td><td>Prometheus metrics exporter address</td></tr>
 </tbody>
 </table>
 </div>
@@ -6851,6 +6852,7 @@ let network = Network::builder()
 <tr><td><code>discovery</code></td><td><code>DiscoveryConfigBuilder</code></td><td>see below</td><td>Nested discovery config</td></tr>
 <tr><td><code>streams</code></td><td><code>StreamsConfigBuilder</code></td><td>see below</td><td>Nested streams config</td></tr>
 <tr><td><code>groups</code></td><td><code>GroupsConfigBuilder</code></td><td>see below</td><td>Nested groups config</td></tr>
+<tr><td><code>prometheus_addr</code></td><td><code>Option&lt;SocketAddr&gt;</code></td><td><code>None</code></td><td>Prometheus HTTP exporter address (<code>prometheus</code> feature)</td></tr>
 </tbody>
 </table>
 </div>
@@ -6981,6 +6983,7 @@ to become leader. Used by collection readers.</p>
 ├── relay_mode          (transport)
 ├── mdns_discovery      (transport)
 ├── addresses           (transport)
+├── prometheus_addr     (observability, `prometheus` feature)
 │
 ├── discovery::Config
 │   ├── bootstrap_peers
@@ -7020,6 +7023,139 @@ variable parsing. However, test utilities honor:</p>
 </tbody>
 </table>
 </div>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="metrics"><a class="header" href="#metrics">Metrics</a></h1>
+<p>Mosaik instruments all subsystems with the <a href="https://docs.rs/metrics"><code>metrics</code></a>
+facade crate. When no recorder is installed the calls are zero-cost no-ops.
+Install any compatible recorder (Prometheus, StatsD, etc.) to start collecting
+data.</p>
+<h2 id="prometheus-exporter"><a class="header" href="#prometheus-exporter">Prometheus exporter</a></h2>
+<p>Enable the <code>prometheus</code> feature (on by default) and pass an address to the
+network builder:</p>
+<pre><code class="language-rust ignore">let network = Network::builder("my-app")
+    .with_prometheus_addr("0.0.0.0:9000".parse().unwrap())
+    .build()
+    .await?;</code></pre>
+<p>An HTTP server starts at the given address and responds to any <code>GET</code> request
+with the current metrics in Prometheus text exposition format.</p>
+<h2 id="labels"><a class="header" href="#labels">Labels</a></h2>
+<p>Most metrics carry labels so you can filter by resource:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Label</th><th>Applied to</th><th>Value</th></tr>
+</thead>
+<tbody>
+<tr><td><code>network</code></td><td>discovery, groups</td><td>Short hex of the NetworkId</td></tr>
+<tr><td><code>group</code></td><td>groups, collections</td><td>Short hex of the GroupId</td></tr>
+<tr><td><code>stream</code></td><td>streams (producer side)</td><td>Short hex of the StreamId</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="metric-catalog"><a class="header" href="#metric-catalog">Metric catalog</a></h2>
+<h3 id="discovery-2"><a class="header" href="#discovery-2">Discovery</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Type</th><th>Labels</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mosaik.discovery.catalog.size</code></td><td>Gauge</td><td><code>network</code></td><td>Number of known peers in catalog</td></tr>
+<tr><td><code>mosaik.discovery.peers.discovered</code></td><td>Counter</td><td><code>network</code></td><td>Peers discovered via gossip</td></tr>
+<tr><td><code>mosaik.discovery.peers.updated</code></td><td>Counter</td><td><code>network</code></td><td>Peer entry updates received</td></tr>
+<tr><td><code>mosaik.discovery.peers.departed</code></td><td>Counter</td><td><code>network</code></td><td>Peers departed or purged as stale</td></tr>
+<tr><td><code>mosaik.discovery.catalog.syncs</code></td><td>Counter</td><td><code>network</code></td><td>Completed catalog syncs</td></tr>
+<tr><td><code>mosaik.discovery.gossip.neighbors</code></td><td>Gauge</td><td><code>network</code></td><td>Active gossip swarm neighbors</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="groups-2"><a class="header" href="#groups-2">Groups</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Type</th><th>Labels</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mosaik.groups.active</code></td><td>Gauge</td><td>—</td><td>Joined groups on this node</td></tr>
+<tr><td><code>mosaik.groups.raft.elections</code></td><td>Counter</td><td><code>network</code>, <code>group</code></td><td>Leader elections started</td></tr>
+<tr><td><code>mosaik.groups.raft.leader.changes</code></td><td>Counter</td><td><code>network</code>, <code>group</code></td><td>Leadership transitions</td></tr>
+<tr><td><code>mosaik.groups.raft.committed</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>Latest committed log index</td></tr>
+<tr><td><code>mosaik.groups.raft.committee.voters</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>Voting members in the committee</td></tr>
+<tr><td><code>mosaik.groups.raft.committee.non_voters</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>Caught-up non-voting followers</td></tr>
+<tr><td><code>mosaik.groups.raft.committee.size</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>Total committee size (voters + others)</td></tr>
+<tr><td><code>mosaik.groups.bonds.active</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>Active bond connections in the group</td></tr>
+<tr><td><code>mosaik.groups.bonds.bytes.sent</code></td><td>Counter</td><td><code>network</code>, <code>group</code></td><td>Bytes sent over bonds</td></tr>
+<tr><td><code>mosaik.groups.bonds.bytes.received</code></td><td>Counter</td><td><code>network</code>, <code>group</code></td><td>Bytes received over bonds</td></tr>
+<tr><td><code>mosaik.groups.bonds.messages.sent</code></td><td>Counter</td><td><code>network</code>, <code>group</code></td><td>Messages sent over bonds</td></tr>
+<tr><td><code>mosaik.groups.bonds.messages.received</code></td><td>Counter</td><td><code>network</code>, <code>group</code></td><td>Messages received over bonds</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="streams-2"><a class="header" href="#streams-2">Streams</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Type</th><th>Labels</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mosaik.streams.producers.active</code></td><td>Gauge</td><td>—</td><td>Active producer sinks on this node</td></tr>
+<tr><td><code>mosaik.streams.producer.consumers</code></td><td>Gauge</td><td><code>stream</code>, <code>network</code></td><td>Connected consumers per producer</td></tr>
+<tr><td><code>mosaik.streams.producer.consumers.accepted</code></td><td>Counter</td><td><code>stream</code>, <code>network</code></td><td>Consumer subscriptions accepted</td></tr>
+<tr><td><code>mosaik.streams.producer.consumers.rejected</code></td><td>Counter</td><td><code>stream</code>, <code>network</code></td><td>Consumer subscriptions rejected</td></tr>
+<tr><td><code>mosaik.streams.producer.items.sent</code></td><td>Counter</td><td><code>stream</code>, <code>network</code></td><td>Items fanned out to consumers</td></tr>
+<tr><td><code>mosaik.streams.producer.bytes.sent</code></td><td>Counter</td><td><code>stream</code>, <code>network</code></td><td>Bytes fanned out to consumers</td></tr>
+<tr><td><code>mosaik.streams.producer.items.dropped</code></td><td>Counter</td><td><code>stream</code>, <code>network</code></td><td>Items dropped (consumer lagging)</td></tr>
+<tr><td><code>mosaik.streams.connections.accepted</code></td><td>Counter</td><td>—</td><td>Stream protocol connections accepted</td></tr>
+<tr><td><code>mosaik.streams.connections.rejected</code></td><td>Counter</td><td>—</td><td>Stream protocol connections rejected</td></tr>
+<tr><td><code>mosaik.streams.consumers.active</code></td><td>Gauge</td><td><code>stream</code>, <code>network</code></td><td>Active consumer workers on this node</td></tr>
+<tr><td><code>mosaik.streams.consumer.producers</code></td><td>Gauge</td><td><code>stream</code>, <code>network</code></td><td>Connected producers per consumer</td></tr>
+<tr><td><code>mosaik.streams.consumer.items.received</code></td><td>Counter</td><td><code>stream</code>, <code>network</code></td><td>Items received by consumers</td></tr>
+<tr><td><code>mosaik.streams.consumer.bytes.received</code></td><td>Counter</td><td><code>stream</code>, <code>network</code></td><td>Bytes received by consumers</td></tr>
+<tr><td><code>mosaik.streams.datums.total</code></td><td>Counter</td><td>—</td><td>Global datums transmitted (all streams)</td></tr>
+<tr><td><code>mosaik.streams.bytes.total</code></td><td>Counter</td><td>—</td><td>Global bytes transmitted (all streams)</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="collections-3"><a class="header" href="#collections-3">Collections</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Type</th><th>Labels</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mosaik.collections.map.size</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>Number of entries in a Map</td></tr>
+<tr><td><code>mosaik.collections.vec.size</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>Number of elements in a Vec</td></tr>
+<tr><td><code>mosaik.collections.set.size</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>Number of elements in a Set</td></tr>
+<tr><td><code>mosaik.collections.cell.size</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>1 if Cell has a value, 0 otherwise</td></tr>
+<tr><td><code>mosaik.collections.once.size</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>1 if Once has been written, 0 otherwise</td></tr>
+<tr><td><code>mosaik.collections.depq.size</code></td><td>Gauge</td><td><code>network</code>, <code>group</code></td><td>Number of entries in a PriorityQueue</td></tr>
+<tr><td><code>mosaik.collections.syncs.started</code></td><td>Counter</td><td><code>network</code>, <code>group</code></td><td>Snapshot sync operations initiated</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="network-2"><a class="header" href="#network-2">Network</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Type</th><th>Labels</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mosaik.network.connections.opened</code></td><td>Counter</td><td>—</td><td>Total Link connections opened</td></tr>
+<tr><td><code>mosaik.network.egress.bytes</code></td><td>Counter</td><td>—</td><td>Total bytes sent across all links</td></tr>
+<tr><td><code>mosaik.network.ingress.bytes</code></td><td>Counter</td><td>—</td><td>Total bytes received across all links</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="custom-recorder"><a class="header" href="#custom-recorder">Custom recorder</a></h2>
+<p>If you prefer a different exporter or need to combine mosaik metrics with your
+application’s own metrics, install any <code>metrics::Recorder</code> before building the
+network and omit <code>with_prometheus_addr</code>:</p>
+<pre><code class="language-rust ignore">// install your own recorder
+metrics::set_global_recorder(my_recorder).unwrap();
+
+// build without the built-in exporter
+let network = Network::builder("my-app").build().await?;</code></pre>
+<p>All <code>mosaik.*</code> metrics will flow through your recorder automatically.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="error-handling-9"><a class="header" href="#error-handling-9">Error Handling</a></h1>
 <p>Mosaik uses typed error enums specific to each subsystem, plus a

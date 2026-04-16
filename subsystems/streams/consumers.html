@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-5ae5e99c.js";
+            window.path_to_searchindex_js = "../../searchindex-9160cd77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-6d32b89e.js"></script>
@@ -204,6 +204,7 @@
 <tbody>
 <tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Peer eligibility predicate (AND-composed)</td></tr>
 <tr><td><code>require_ticket(validator)</code></td><td>None</td><td>Expiration-aware ticket validation (stackable)</td></tr>
+<tr><td><code>online_when(conditions)</code></td><td><code>minimum_of(0)</code></td><td>Conditions under which the consumer is online</td></tr>
 <tr><td><code>with_criteria(criteria)</code></td><td><code>Criteria::default()</code></td><td>Data selection criteria sent to producers</td></tr>
 <tr><td><code>with_stream_id(id)</code></td><td><code>D::derived_stream_id()</code></td><td>Custom stream identity</td></tr>
 <tr><td><code>with_backoff(policy)</code></td><td>From <code>Streams</code> config</td><td>Backoff policy for reconnection retries</td></tr>
@@ -308,7 +309,7 @@ consumer.when().online().await;
 consumer.when().subscribed().await;
 
 // Wait until connected to at least N producers
-consumer.when().subscribed().to_at_least(3).await;
+consumer.when().subscribed().minimum_of(3).await;
 
 // Wait until no producers are connected
 consumer.when().unsubscribed().await;</code></pre>

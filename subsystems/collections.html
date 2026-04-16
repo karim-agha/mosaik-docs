@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5ae5e99c.js";
+            window.path_to_searchindex_js = "../searchindex-9160cd77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-6d32b89e.js"></script>
@@ -235,9 +235,10 @@ using a const-generic boolean:</p>
 </tbody>
 </table>
 </div>
-<p>Both modes provide identical read access. Readers automatically use
-<code>deprioritize_leadership()</code> in their consensus configuration to reduce the
-chance of being elected leader, since leaders handle write forwarding.</p>
+<p>Both modes provide identical read access. Readers return
+<code>LeadershipPreference::Observer</code> from their state machine, so they never
+self-nominate and do not count toward quorum — only writer nodes fill
+the voting committee.</p>
 <pre><code class="language-rust ignore">// Writer — can read AND write
 let w = Map::&lt;String, u64&gt;::writer(&amp;network, store_id);
 

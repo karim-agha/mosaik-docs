@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-5ae5e99c.js";
+            window.path_to_searchindex_js = "../../searchindex-9160cd77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-6d32b89e.js"></script>
@@ -315,11 +315,11 @@ reg.when().updated().await;
 reg.when().offline().await;</code></pre>
 <h2 id="group-identity"><a class="header" href="#group-identity">Group identity</a></h2>
 <p>The group key for a <code>Cell&lt;T&gt;</code> is derived from:</p>
-<pre><code class="language-text">UniqueId::from("mosaik_collections_register")
+<pre><code class="language-text">UniqueId::from("mosaik_collections_cell")
     .derive(store_id)
     .derive(type_name::&lt;T&gt;())
 </code></pre>
-<p>Two registers with the same <code>StoreId</code> but different value types will be in
+<p>Two cells with the same <code>StoreId</code> but different value types will be in
 separate consensus groups.</p>
 <h2 id="when-to-use-cell"><a class="header" href="#when-to-use-cell">When to use Cell</a></h2>
 <p>Cell is ideal for:</p>

@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5ae5e99c.js";
+            window.path_to_searchindex_js = "../searchindex-9160cd77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-6d32b89e.js"></script>
@@ -208,8 +208,9 @@ let groups    = network.groups();      // Groups</code></pre>
 <tr><th>Subsystem</th><th>ALPN</th><th>Purpose</th></tr>
 </thead>
 <tbody>
-<tr><td>Discovery (announce)</td><td><code>/mosaik/announce</code></td><td>Real-time gossip broadcasts</td></tr>
-<tr><td>Discovery (sync)</td><td><code>/mosaik/catalog-sync</code></td><td>Full catalog exchange</td></tr>
+<tr><td>Discovery (announce)</td><td><code>/mosaik/discovery/announce/1.0</code></td><td>Real-time gossip broadcasts</td></tr>
+<tr><td>Discovery (sync)</td><td><code>/mosaik/discovery/sync/1.0</code></td><td>Full catalog exchange</td></tr>
+<tr><td>Discovery (ping)</td><td><code>/mosaik/discovery/ping/1.0</code></td><td>RTT measurement probes</td></tr>
 <tr><td>Streams</td><td><code>/mosaik/streams/1.0</code></td><td>Pub/sub data channels</td></tr>
 <tr><td>Groups</td><td><code>/mosaik/groups/1</code></td><td>Raft consensus, bonds, state sync</td></tr>
 </tbody>

@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5ae5e99c.js";
+            window.path_to_searchindex_js = "../searchindex-9160cd77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-6d32b89e.js"></script>
@@ -193,12 +193,18 @@
 <p>A producer announces a stream via Discovery. Consumers discover the producer, open a QUIC connection using the <code>/mosaik/streams/1.0</code> ALPN, and begin receiving data. The entire lifecycle is automatic — you only create the handles.</p>
 <h2 id="the-datum-trait"><a class="header" href="#the-datum-trait">The Datum Trait</a></h2>
 <p>Every type sent through a stream must implement <code>Datum</code>:</p>
-<pre><code class="language-rust ignore">pub trait Datum: Serialize + DeserializeOwned + Send + 'static {
+<pre><code class="language-rust ignore">pub trait Datum: Sized + Send + 'static {
+    type EncodeError: core::error::Error + Send + Sync + 'static;
+    type DecodeError: core::error::Error + Send + Sync + 'static;
+
     fn derived_stream_id() -&gt; StreamId {
         core::any::type_name::&lt;Self&gt;().into()
     }
+
+    fn encode(&amp;self) -&gt; Result&lt;Bytes, Self::EncodeError&gt;;
+    fn decode(bytes: &amp;[u8]) -&gt; Result&lt;Self, Self::DecodeError&gt;;
 }</code></pre>
-<p><code>Datum</code> is a blanket impl — any <code>Serialize + DeserializeOwned + Send + 'static</code> type is automatically a <code>Datum</code>. The <code>derived_stream_id()</code> method computes a <code>StreamId</code> (a <code>Digest</code>) from the Rust type name, so each type naturally maps to a unique stream.</p>
+<p><code>Datum</code> has a blanket impl — any <code>Serialize + DeserializeOwned + Send + 'static</code> type is automatically a <code>Datum</code>, using postcard as the serialization format. The <code>derived_stream_id()</code> method computes a <code>StreamId</code> (a <code>Digest</code>) from the Rust type name, so each type naturally maps to a unique stream. You can also implement <code>Datum</code> manually if you need a custom encoding.</p>
 <pre><code class="language-rust ignore">#[derive(Serialize, Deserialize)]
 struct PriceUpdate {
     symbol: String,

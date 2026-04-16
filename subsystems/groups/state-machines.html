@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-5ae5e99c.js";
+            window.path_to_searchindex_js = "../../searchindex-9160cd77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-6d32b89e.js"></script>
@@ -196,7 +196,7 @@
 
     // Optional overrides
     fn apply_batch(&amp;mut self, commands: impl IntoIterator&lt;Item = Self::Command&gt;, ctx: &amp;dyn ApplyContext) { ... }
-    fn leadership_preference(&amp;self) -&gt; LeadershipPreference { LeadershipPreference::Normal }
+    fn leadership_preference(&amp;self, local: &amp;PeerEntry) -&gt; LeadershipPreference { LeadershipPreference::Normal }
 }</code></pre>
 <h3 id="associated-types"><a class="header" href="#associated-types">Associated Types</a></h3>
 <div class="table-wrapper">
@@ -275,6 +275,8 @@ impl StateMachine for Counter {
     fn committed(&amp;self) -&gt; Cursor;     // Last committed position before this batch
     fn log_position(&amp;self) -&gt; Cursor;  // Last log position
     fn current_term(&amp;self) -&gt; Term;    // Term of the commands being applied
+    fn group_id(&amp;self) -&gt; &amp;GroupId;    // The group this machine belongs to
+    fn network_id(&amp;self) -&gt; &amp;NetworkId; // The network this group belongs to
 }</code></pre>
 <blockquote>
 <p><strong>Important:</strong> The context is safe for deterministic state machines — it never exposes non-deterministic data that could diverge across nodes.</p>
@@ -320,9 +322,14 @@ impl StateMachine for NoOp {
 the group by overriding <code>leadership_preference()</code>. This is a per-node
 setting – different nodes in the same group can return different values
 without affecting the <code>GroupId</code>.</p>
+<p>The method receives a <code>&amp;PeerEntry</code> for the local node, giving the state
+machine access to its own peer id, tags, and other discovery metadata
+when deciding its preference. This is useful when the same state machine
+code should behave differently depending on which node it runs on.</p>
 <pre><code class="language-rust ignore">use mosaik::LeadershipPreference;
+use mosaik::discovery::PeerEntry;
 
-fn leadership_preference(&amp;self) -&gt; LeadershipPreference {
+fn leadership_preference(&amp;self, local: &amp;PeerEntry) -&gt; LeadershipPreference {
     LeadershipPreference::Observer
 }</code></pre>
 <div class="table-wrapper">

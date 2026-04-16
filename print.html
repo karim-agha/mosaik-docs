@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5ae5e99c.js";
+            window.path_to_searchindex_js = "searchindex-9160cd77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6d32b89e.js"></script>
@@ -196,7 +196,7 @@
 <li><strong>Not Byzantine fault tolerant.</strong> All members are assumed honest. This simplifies the protocol stack and enables higher throughput compared to BFT systems. For stronger integrity guarantees, groups can optionally require hardware attestations (e.g. Intel TDX) to cryptographically prove that every member is running the expected software.</li>
 <li><strong>Self-organizing.</strong> No central coordinator, no manual topology configuration. Nodes find each other and form the right connections.</li>
 <li><strong>Built on modern networking.</strong> Uses <a href="https://github.com/n0-computer/iroh">iroh</a> for QUIC-based peer-to-peer transport with relay support and hole-punching.</li>
-<li><strong>Composable primitives.</strong> Five subsystems (<code>Network</code>, <code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Collections</code>) compose to support a wide range of distributed application patterns.</li>
+<li><strong>Composable primitives.</strong> Four subsystems (<code>Discovery</code>, <code>Streams</code>, <code>Groups</code>, <code>Collections</code>) accessible from a <code>Network</code> instance compose to support a wide range of distributed application patterns.</li>
 <li><strong>First-class TEE support.</strong> Hardware-attested identity via Intel TDX (with AMD SEV-SNP and ARM CCA planned), enabling secure access control based on cryptographic proof of the software running on each node.</li>
 </ul>
 <h2 id="system-overview"><a class="header" href="#system-overview">System Overview</a></h2>
@@ -522,8 +522,9 @@ let groups    = network.groups();      // Groups</code></pre>
 <tr><th>Subsystem</th><th>ALPN</th><th>Purpose</th></tr>
 </thead>
 <tbody>
-<tr><td>Discovery (announce)</td><td><code>/mosaik/announce</code></td><td>Real-time gossip broadcasts</td></tr>
-<tr><td>Discovery (sync)</td><td><code>/mosaik/catalog-sync</code></td><td>Full catalog exchange</td></tr>
+<tr><td>Discovery (announce)</td><td><code>/mosaik/discovery/announce/1.0</code></td><td>Real-time gossip broadcasts</td></tr>
+<tr><td>Discovery (sync)</td><td><code>/mosaik/discovery/sync/1.0</code></td><td>Full catalog exchange</td></tr>
+<tr><td>Discovery (ping)</td><td><code>/mosaik/discovery/ping/1.0</code></td><td>RTT measurement probes</td></tr>
 <tr><td>Streams</td><td><code>/mosaik/streams/1.0</code></td><td>Pub/sub data channels</td></tr>
 <tr><td>Groups</td><td><code>/mosaik/groups/1</code></td><td>Raft consensus, bonds, state sync</td></tr>
 </tbody>
@@ -1346,7 +1347,7 @@ orderbook example complete
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="network-1"><a class="header" href="#network-1">Network</a></h1>
-<p>The <code>Network</code> is the primary entry point to the mosaik SDK. It creates the QUIC transport layer, establishes node identity, and composes all subsystems (Discovery, Streams, Groups) into a single cohesive runtime.</p>
+<p>The <code>Network</code> is the primary entry point to the mosaik SDK. It creates the QUIC transport layer, establishes node identity, and composes all subsystems (Discovery, Streams, Groups, Collections) into a single cohesive runtime.</p>
 <h2 id="creating-a-network"><a class="header" href="#creating-a-network">Creating a Network</a></h2>
 <h3 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h3>
 <p>For prototyping, <code>Network::new()</code> creates a node with default settings:</p>
@@ -1515,8 +1516,8 @@ link.close(MyCloseReason::Success).await?;</code></pre>
 </thead>
 <tbody>
 <tr><td>DHT Bootstrap</td><td>Mainline DHT (pkarr)</td><td>Automatic peer discovery via shared <code>NetworkId</code></td></tr>
-<tr><td>Announce</td><td><code>/mosaik/announce</code></td><td>Real-time gossip broadcasts via iroh-gossip</td></tr>
-<tr><td>Catalog Sync</td><td><code>/mosaik/catalog-sync</code></td><td>Full bidirectional catalog exchange for catch-up</td></tr>
+<tr><td>Announce</td><td><code>/mosaik/discovery/announce/1.0</code></td><td>Real-time gossip broadcasts via iroh-gossip</td></tr>
+<tr><td>Catalog Sync</td><td><code>/mosaik/discovery/sync/1.0</code></td><td>Full bidirectional catalog exchange for catch-up</td></tr>
 </tbody>
 </table>
 </div>
@@ -1552,15 +1553,14 @@ let network = Network::builder(network_id)
 <tbody>
 <tr><td><code>bootstrap_peers</code></td><td><code>[]</code></td><td>Initial peers to connect to on startup</td></tr>
 <tr><td><code>tags</code></td><td><code>[]</code></td><td>Tags to advertise about this node</td></tr>
-<tr><td><code>announce_interval</code></td><td>15s</td><td>How often to re-announce via gossip</td></tr>
+<tr><td><code>announce_interval</code></td><td>45s</td><td>How often to re-announce via gossip</td></tr>
 <tr><td><code>announce_jitter</code></td><td>0.5</td><td>Max jitter factor (0.0–1.0) for announce timing</td></tr>
 <tr><td><code>purge_after</code></td><td>300s</td><td>Duration after which stale entries are purged</td></tr>
-<tr><td><code>max_time_drift</code></td><td>10s</td><td>Maximum acceptable clock drift between peers</td></tr>
+<tr><td><code>max_time_drift</code></td><td>50s</td><td>Maximum acceptable clock drift between peers</td></tr>
 <tr><td><code>events_backlog</code></td><td>100</td><td>Past events retained in event broadcast channel</td></tr>
 <tr><td><code>rtt_probe_interval</code></td><td>30s</td><td>Interval for RTT ping probes to cataloged peers</td></tr>
 <tr><td><code>max_rtt</code></td><td><code>None</code></td><td>Maximum acceptable RTT for peers (see below)</td></tr>
-<tr><td><code>dht_publish_interval</code></td><td>300s</td><td>How often to publish to the DHT (<code>None</code> to disable)</td></tr>
-<tr><td><code>dht_poll_interval</code></td><td>60s</td><td>How often to poll the DHT for peers (<code>None</code> to disable)</td></tr>
+<tr><td><code>no_dht_bootstrap</code></td><td><code>false</code></td><td>Disables the DHT bootstrap mechanism entirely</td></tr>
 </tbody>
 </table>
 </div>
@@ -1625,7 +1625,7 @@ let mut watch = discovery.catalog_watch();
 loop {
     watch.changed().await?;
     let catalog = watch.borrow();
-    println!("Catalog updated: {} peers", catalog.len());
+    println!("Catalog updated: {} peers", catalog.peers_count());
 }</code></pre>
 <h3 id="dialing-peers"><a class="header" href="#dialing-peers">Dialing Peers</a></h3>
 <pre><code class="language-rust ignore">// Connect to bootstrap peers manually
@@ -1763,7 +1763,7 @@ while let Ok(event) = events.recv().await {
 <pre><code class="language-rust ignore">let network = Network::builder(network_id)
     .with_discovery(
         discovery::Config::builder()
-            .no_auto_bootstrap()
+            .no_dht_bootstrap()
             .with_bootstrap(bootstrap_addr)
     )
     .build()
@@ -1775,7 +1775,7 @@ while let Ok(event) = events.recv().await {
 <tr><th>Option</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>no_auto_bootstrap</code></td><td><code>false</code></td><td>Disables the DHT bootstrap mechanism entirely.</td></tr>
+<tr><td><code>no_dht_bootstrap</code></td><td><code>false</code></td><td>Disables the DHT bootstrap mechanism entirely.</td></tr>
 <tr><td><code>bootstrap_peers</code></td><td><code>[]</code></td><td>Explicit peers to connect to on startup (via <code>with_bootstrap</code>).</td></tr>
 </tbody>
 </table>
@@ -1804,8 +1804,8 @@ for (peer_id, entry) in catalog.iter() {
     println!("Peer {}: {:?}", peer_id, entry.tags);
 }
 
-// Count peers
-println!("Known peers: {}", catalog.len());</code></pre>
+// Count peers (excludes the local node)
+println!("Known peers: {}", catalog.peers_count());</code></pre>
 <h3 id="watching-for-changes"><a class="header" href="#watching-for-changes">Watching for Changes</a></h3>
 <pre><code class="language-rust ignore">let mut watch = discovery.catalog_watch();
 
@@ -1815,36 +1815,27 @@ loop {
 
     // Borrow the latest snapshot
     let catalog = watch.borrow();
-    println!("Catalog updated, {} peers", catalog.len());
+    println!("Catalog updated, {} peers", catalog.peers_count());
 }</code></pre>
 <p>The watch receiver always has the latest value. Multiple calls to <code>changed()</code> may skip intermediate updates if the catalog changes faster than you observe it.</p>
 <h2 id="peerentry"><a class="header" href="#peerentry">PeerEntry</a></h2>
-<p>Each peer in the catalog is represented by a <code>PeerEntry</code>:</p>
-<pre><code class="language-rust ignore">pub struct PeerEntry {
-    pub network_id: NetworkId,
-    pub peer_id: PeerId,
-    pub addr: EndpointAddr,
-    pub tags: BTreeSet&lt;Tag&gt;,
-    pub streams: BTreeSet&lt;StreamId&gt;,
-    pub groups: BTreeSet&lt;GroupId&gt;,
-    pub tickets: BTreeMap&lt;UniqueId, Ticket&gt;,
-    pub version: PeerEntryVersion,
-}</code></pre>
-<h3 id="fields"><a class="header" href="#fields">Fields</a></h3>
+<p>Each peer in the catalog is represented by a <code>PeerEntry</code>. All fields are
+private — access them through accessor methods:</p>
+<h3 id="accessor-methods"><a class="header" href="#accessor-methods">Accessor Methods</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+<tr><th>Method</th><th>Returns</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>network_id</code></td><td><code>NetworkId</code></td><td>Which network this peer belongs to</td></tr>
-<tr><td><code>peer_id</code></td><td><code>PeerId</code></td><td>The peer’s public key</td></tr>
-<tr><td><code>addr</code></td><td><code>EndpointAddr</code></td><td>Connection address (public key + relay + direct addrs)</td></tr>
-<tr><td><code>tags</code></td><td><code>BTreeSet&lt;Tag&gt;</code></td><td>Capability labels (e.g., <code>"matcher"</code>, <code>"validator"</code>)</td></tr>
-<tr><td><code>streams</code></td><td><code>BTreeSet&lt;StreamId&gt;</code></td><td>Streams this peer produces</td></tr>
-<tr><td><code>groups</code></td><td><code>BTreeSet&lt;GroupId&gt;</code></td><td>Groups this peer belongs to</td></tr>
-<tr><td><code>tickets</code></td><td><code>BTreeMap&lt;UniqueId,Ticket&gt;</code></td><td>Auth tickets keyed by ticket id (see <a href="#auth-tickets">Auth Tickets</a>)</td></tr>
-<tr><td><code>version</code></td><td><code>PeerEntryVersion</code></td><td>Two-part version for staleness detection</td></tr>
+<tr><td><code>id()</code></td><td><code>&amp;PeerId</code></td><td>The peer’s public key</td></tr>
+<tr><td><code>network_id()</code></td><td><code>&amp;NetworkId</code></td><td>Which network this peer belongs to</td></tr>
+<tr><td><code>protocol_version()</code></td><td><code>&amp;Version</code></td><td>The mosaik protocol version used by the peer</td></tr>
+<tr><td><code>address()</code></td><td><code>&amp;EndpointAddr</code></td><td>Connection address (public key + relay + direct addrs)</td></tr>
+<tr><td><code>tags()</code></td><td><code>&amp;BTreeSet&lt;Tag&gt;</code></td><td>Capability labels (e.g., <code>"matcher"</code>, <code>"validator"</code>)</td></tr>
+<tr><td><code>streams()</code></td><td><code>&amp;BTreeSet&lt;StreamId&gt;</code></td><td>Streams this peer produces</td></tr>
+<tr><td><code>groups()</code></td><td><code>&amp;BTreeSet&lt;GroupId&gt;</code></td><td>Groups this peer belongs to</td></tr>
+<tr><td><code>tickets()</code></td><td><code>&amp;BTreeMap&lt;UniqueId,Ticket&gt;</code></td><td>Auth tickets keyed by ticket id (see <a href="#auth-tickets">Auth Tickets</a>)</td></tr>
 </tbody>
 </table>
 </div>
@@ -1863,7 +1854,7 @@ let peer_id = my_entry.peer_id();</code></pre>
 <li><strong>Hidden</strong> from the public catalog API</li>
 <li><strong>Eventually removed</strong> if not refreshed</li>
 </ol>
-<p>The periodic gossip re-announce (every ~15s by default) keeps entries fresh. When a node departs gracefully, it broadcasts a departure message; ungraceful departures are detected by staleness.</p>
+<p>The periodic gossip re-announce (every ~45s by default) keeps entries fresh. When a node departs gracefully, it broadcasts a departure message; ungraceful departures are detected by staleness.</p>
 <h2 id="using-catalog-for-filtering"><a class="header" href="#using-catalog-for-filtering">Using Catalog for Filtering</a></h2>
 <p>The catalog is commonly used to filter peers in Streams. The <code>require</code>
 predicate receives a <code>PeerInfo</code>, which wraps <code>PeerEntry</code> with
@@ -2037,11 +2028,12 @@ non-expiring.</p>
 <h3 id="2-issue-tickets-with-jwtticketbuilder"><a class="header" href="#2-issue-tickets-with-jwtticketbuilder">2. Issue tickets with <code>JwtTicketBuilder</code></a></h3>
 <p><code>JwtTicketBuilder</code> is the issuing counterpart to <code>Jwt</code>. It signs JWTs
 and wraps them as <code>Ticket</code> values ready for discovery:</p>
-<pre><code class="language-rust ignore">use mosaik::tickets::{Hs256, JwtTicketBuilder, Expiration};
+<pre><code class="language-rust ignore">use mosaik::tickets::{Hs256, JwtTicketBuilder};
+use core::time::Duration;
 
 let builder = JwtTicketBuilder::new(Hs256::new(secret))
     .issuer("my-app")
-    .expires_at(Expiration::At(expiration_time));
+    .expires_in(Duration::from_secs(3600));
 
 let ticket = builder.build(&amp;peer_id);
 network.discovery().add_ticket(ticket);</code></pre>
@@ -2067,7 +2059,6 @@ network.discovery().add_ticket(ticket);</code></pre>
 <tr><td><code>.issuer(s)</code></td><td>Set the <code>iss</code> claim</td></tr>
 <tr><td><code>.subject(s)</code></td><td>Override the <code>sub</code> claim (default: peer id in lower hex)</td></tr>
 <tr><td><code>.audience(s)</code></td><td>Set the <code>aud</code> claim</td></tr>
-<tr><td><code>.expires_at(expiration)</code></td><td>Set the expiration policy (<code>Expiration::At(dt)</code> or <code>Never</code>)</td></tr>
 <tr><td><code>.expires_in(duration)</code></td><td>Set expiration relative to current time</td></tr>
 <tr><td><code>.issued_at(datetime)</code></td><td>Override <code>iat</code> (default: current time)</td></tr>
 <tr><td><code>.not_before(datetime)</code></td><td>Set the <code>nbf</code> claim</td></tr>
@@ -2421,12 +2412,18 @@ while let Ok(event) = events.recv().await {
 <p>A producer announces a stream via Discovery. Consumers discover the producer, open a QUIC connection using the <code>/mosaik/streams/1.0</code> ALPN, and begin receiving data. The entire lifecycle is automatic — you only create the handles.</p>
 <h2 id="the-datum-trait"><a class="header" href="#the-datum-trait">The Datum Trait</a></h2>
 <p>Every type sent through a stream must implement <code>Datum</code>:</p>
-<pre><code class="language-rust ignore">pub trait Datum: Serialize + DeserializeOwned + Send + 'static {
+<pre><code class="language-rust ignore">pub trait Datum: Sized + Send + 'static {
+    type EncodeError: core::error::Error + Send + Sync + 'static;
+    type DecodeError: core::error::Error + Send + Sync + 'static;
+
     fn derived_stream_id() -&gt; StreamId {
         core::any::type_name::&lt;Self&gt;().into()
     }
+
+    fn encode(&amp;self) -&gt; Result&lt;Bytes, Self::EncodeError&gt;;
+    fn decode(bytes: &amp;[u8]) -&gt; Result&lt;Self, Self::DecodeError&gt;;
 }</code></pre>
-<p><code>Datum</code> is a blanket impl — any <code>Serialize + DeserializeOwned + Send + 'static</code> type is automatically a <code>Datum</code>. The <code>derived_stream_id()</code> method computes a <code>StreamId</code> (a <code>Digest</code>) from the Rust type name, so each type naturally maps to a unique stream.</p>
+<p><code>Datum</code> has a blanket impl — any <code>Serialize + DeserializeOwned + Send + 'static</code> type is automatically a <code>Datum</code>, using postcard as the serialization format. The <code>derived_stream_id()</code> method computes a <code>StreamId</code> (a <code>Digest</code>) from the Rust type name, so each type naturally maps to a unique stream. You can also implement <code>Datum</code> manually if you need a custom encoding.</p>
 <pre><code class="language-rust ignore">#[derive(Serialize, Deserialize)]
 struct PriceUpdate {
     symbol: String,
@@ -2938,6 +2935,7 @@ while let Some(datum) = rx.recv().await {
 <tbody>
 <tr><td><code>require(predicate)</code></td><td>Accept all</td><td>Peer eligibility predicate (AND-composed)</td></tr>
 <tr><td><code>require_ticket(validator)</code></td><td>None</td><td>Expiration-aware ticket validation (stackable)</td></tr>
+<tr><td><code>online_when(conditions)</code></td><td><code>minimum_of(0)</code></td><td>Conditions under which the consumer is online</td></tr>
 <tr><td><code>with_criteria(criteria)</code></td><td><code>Criteria::default()</code></td><td>Data selection criteria sent to producers</td></tr>
 <tr><td><code>with_stream_id(id)</code></td><td><code>D::derived_stream_id()</code></td><td>Custom stream identity</td></tr>
 <tr><td><code>with_backoff(policy)</code></td><td>From <code>Streams</code> config</td><td>Backoff policy for reconnection retries</td></tr>
@@ -3042,7 +3040,7 @@ consumer.when().online().await;
 consumer.when().subscribed().await;
 
 // Wait until connected to at least N producers
-consumer.when().subscribed().to_at_least(3).await;
+consumer.when().subscribed().minimum_of(3).await;
 
 // Wait until no producers are connected
 consumer.when().unsubscribed().await;</code></pre>
@@ -3399,13 +3397,20 @@ let group = network.groups()
 </table>
 </div>
 <h3 id="leadership-preference"><a class="header" href="#leadership-preference">Leadership Preference</a></h3>
-<p>Nodes can deprioritize leadership to prefer being followers:</p>
-<pre><code class="language-rust ignore">// 3x longer election timeout (default multiplier)
-let config = ConsensusConfig::default().deprioritize_leadership();
+<p>Leadership preference is configured per-node through the <code>StateMachine</code> trait,
+not through <code>ConsensusConfig</code>. Override <code>leadership_preference()</code> to control
+whether a node actively participates in elections:</p>
+<pre><code class="language-rust ignore">use mosaik::LeadershipPreference;
 
-// Custom multiplier
-let config = ConsensusConfig::default().deprioritize_leadership_by(5);</code></pre>
-<p>This multiplies both <code>election_timeout</code> and <code>bootstrap_delay</code>, reducing the chance of becoming leader.</p>
+fn leadership_preference(&amp;self, _: &amp;PeerEntry) -&gt; LeadershipPreference {
+    // Never self-nominate, don't count toward quorum
+    LeadershipPreference::Observer
+
+    // Or: longer election timeouts (3x default), still eligible
+    // LeadershipPreference::reluctant()
+}</code></pre>
+<p>See <a href="#leadership-preference-1">State Machines &gt; Leadership Preference</a>
+for details on the three variants (<code>Normal</code>, <code>Reluctant</code>, <code>Observer</code>).</p>
 <h2 id="ticket-based-peer-authentication"><a class="header" href="#ticket-based-peer-authentication">Ticket-Based Peer Authentication</a></h2>
 <p>By default, any peer that knows the <code>GroupKey</code> can join a group. To add an
 extra layer of verification, call <code>.require_ticket()</code> with a
@@ -3483,7 +3488,7 @@ addition to concrete types.</li>
 
     // Optional overrides
     fn apply_batch(&amp;mut self, commands: impl IntoIterator&lt;Item = Self::Command&gt;, ctx: &amp;dyn ApplyContext) { ... }
-    fn leadership_preference(&amp;self) -&gt; LeadershipPreference { LeadershipPreference::Normal }
+    fn leadership_preference(&amp;self, local: &amp;PeerEntry) -&gt; LeadershipPreference { LeadershipPreference::Normal }
 }</code></pre>
 <h3 id="associated-types"><a class="header" href="#associated-types">Associated Types</a></h3>
 <div class="table-wrapper">
@@ -3562,6 +3567,8 @@ impl StateMachine for Counter {
     fn committed(&amp;self) -&gt; Cursor;     // Last committed position before this batch
     fn log_position(&amp;self) -&gt; Cursor;  // Last log position
     fn current_term(&amp;self) -&gt; Term;    // Term of the commands being applied
+    fn group_id(&amp;self) -&gt; &amp;GroupId;    // The group this machine belongs to
+    fn network_id(&amp;self) -&gt; &amp;NetworkId; // The network this group belongs to
 }</code></pre>
 <blockquote>
 <p><strong>Important:</strong> The context is safe for deterministic state machines — it never exposes non-deterministic data that could diverge across nodes.</p>
@@ -3607,9 +3614,14 @@ impl StateMachine for NoOp {
 the group by overriding <code>leadership_preference()</code>. This is a per-node
 setting – different nodes in the same group can return different values
 without affecting the <code>GroupId</code>.</p>
+<p>The method receives a <code>&amp;PeerEntry</code> for the local node, giving the state
+machine access to its own peer id, tags, and other discovery metadata
+when deciding its preference. This is useful when the same state machine
+code should behave differently depending on which node it runs on.</p>
 <pre><code class="language-rust ignore">use mosaik::LeadershipPreference;
+use mosaik::discovery::PeerEntry;
 
-fn leadership_preference(&amp;self) -&gt; LeadershipPreference {
+fn leadership_preference(&amp;self, local: &amp;PeerEntry) -&gt; LeadershipPreference {
     LeadershipPreference::Observer
 }</code></pre>
 <div class="table-wrapper">
@@ -3721,9 +3733,9 @@ println!("Local counter value: {} (at index {})", result.result, result.at_posit
 <p>Forwards the query to the current leader, guaranteeing linearizable reads:</p>
 <pre><code class="language-rust ignore">let result = group.query(CounterQuery::Value, Consistency::Strong).await?;
 println!("Leader counter value: {} (at index {})", *result, result.state_position());</code></pre>
-<h3 id="committedqueryresult"><a class="header" href="#committedqueryresult">CommittedQueryResult</a></h3>
-<p>Query results are wrapped in <code>CommittedQueryResult&lt;M&gt;</code>:</p>
-<pre><code class="language-rust ignore">pub struct CommittedQueryResult&lt;M: StateMachine&gt; {
+<h3 id="queryresultat"><a class="header" href="#queryresultat">QueryResultAt</a></h3>
+<p>Query results are wrapped in <code>QueryResultAt&lt;M&gt;</code>:</p>
+<pre><code class="language-rust ignore">pub struct QueryResultAt&lt;M: StateMachine&gt; {
     pub result: M::QueryResult,    // The actual result
     pub at_position: Index,        // Log index at query time
 }</code></pre>
@@ -3733,9 +3745,8 @@ println!("Leader counter value: {} (at index {})", *result, result.state_positio
 // Deref to the inner result
 let value: i64 = *result;
 
-// Or access explicitly
-let position = result.state_position();
-let inner = result.into(); // Consume and get M::QueryResult</code></pre>
+// Or access the log position
+let position = result.at_position;</code></pre>
 <h3 id="query-errors"><a class="header" href="#query-errors">Query Errors</a></h3>
 <pre><code class="language-rust ignore">pub enum QueryError&lt;M: StateMachine&gt; {
     Offline(M::Query),   // Node offline; query returned
@@ -3856,7 +3867,7 @@ pub struct Cursor { pub term: Term, pub index: Index }</code></pre>
 
 // Iterate current bonds
 for bond in bonds.iter() {
-    println!("Bonded to: {}", bond.peer_id());
+    println!("Bonded to: {}", bond.peer().id());
 }</code></pre>
 <p>Bonds carry Raft messages, heartbeats, and sync traffic between group members. See the <a href="subsystems/internals/bonds.html">Bonds deep dive</a> for internals.</p>
 <h2 id="putting-it-together"><a class="header" href="#putting-it-together">Putting It Together</a></h2>
@@ -3942,9 +3953,10 @@ using a const-generic boolean:</p>
 </tbody>
 </table>
 </div>
-<p>Both modes provide identical read access. Readers automatically use
-<code>deprioritize_leadership()</code> in their consensus configuration to reduce the
-chance of being elected leader, since leaders handle write forwarding.</p>
+<p>Both modes provide identical read access. Readers return
+<code>LeadershipPreference::Observer</code> from their state machine, so they never
+self-nominate and do not count toward quorum — only writer nodes fill
+the voting committee.</p>
 <pre><code class="language-rust ignore">// Writer — can read AND write
 let w = Map::&lt;String, u64&gt;::writer(&amp;network, store_id);
 
@@ -4816,11 +4828,11 @@ reg.when().updated().await;
 reg.when().offline().await;</code></pre>
 <h2 id="group-identity-4"><a class="header" href="#group-identity-4">Group identity</a></h2>
 <p>The group key for a <code>Cell&lt;T&gt;</code> is derived from:</p>
-<pre><code class="language-text">UniqueId::from("mosaik_collections_register")
+<pre><code class="language-text">UniqueId::from("mosaik_collections_cell")
     .derive(store_id)
     .derive(type_name::&lt;T&gt;())
 </code></pre>
-<p>Two registers with the same <code>StoreId</code> but different value types will be in
+<p>Two cells with the same <code>StoreId</code> but different value types will be in
 separate consensus groups.</p>
 <h2 id="when-to-use-cell"><a class="header" href="#when-to-use-cell">When to use Cell</a></h2>
 <p>Cell is ideal for:</p>
@@ -5317,16 +5329,19 @@ compile time.</p>
 </li>
 <li>
 <p><strong>Leadership priority</strong> — Readers return a <code>ConsensusConfig</code> with
-<code>deprioritize_leadership()</code>, which increases their election timeout. This
-makes it less likely for a reader to become the Raft leader, keeping
-leadership on writer nodes where write operations are handled directly
-rather than being forwarded.</p>
+<code>LeadershipPreference::Observer</code>, which prevents them from self-nominating
+and excludes them from the quorum denominator. This keeps leadership on
+writer nodes where write operations are handled directly rather than being
+forwarded, and avoids slow reader acknowledgment gating write latency.</p>
 </li>
 </ol>
 <pre><code class="language-rust ignore">// Inside every collection's StateMachine impl:
-fn consensus_config(&amp;self) -&gt; Option&lt;ConsensusConfig&gt; {
-    (!self.is_writer)
-        .then(|| ConsensusConfig::default().deprioritize_leadership())
+fn leadership_preference(&amp;self, _: &amp;PeerEntry) -&gt; LeadershipPreference {
+    if self.is_writer {
+        LeadershipPreference::Normal
+    } else {
+        LeadershipPreference::Observer
+    }
 }</code></pre>
 <h2 id="shared-read-api"><a class="header" href="#shared-read-api">Shared read API</a></h2>
 <p>Both writers and readers have identical read access. The read methods are
@@ -6313,9 +6328,11 @@ enum:</p>
 <pre><code class="language-rust ignore">struct Heartbeat {
     tick: Interval,        // fires every `base - jitter` to `base`
     last_recv: Instant,    // last time we received a Ping or Pong
-    missed: u64,           // how many consecutive ticks without a response
-    max_missed: u64,       // threshold from ConsensusConfig (default: 10)
-    alert: Notify,         // signals when threshold is exceeded
+    missed: u32,           // how many consecutive ticks without a response
+    max_missed: u32,       // threshold from ConsensusConfig (default: 10)
+    alert: Arc&lt;Notify&gt;,    // signals when threshold is exceeded
+    base: Duration,        // heartbeat interval from config
+    jitter: Duration,      // max jitter from config
 }</code></pre>
 <p>On each tick:</p>
 <ol>
@@ -6835,12 +6852,20 @@ values, and how the pieces fit together.</p>
 accessible through fluent builder methods.</p>
 <pre><code class="language-rust ignore">use mosaik::Network;
 
-let network = Network::builder()
-    .network_id("my-network")
-    .mdns_discovery(true)
-    .discovery(|d| d.events_backlog(200))
-    .streams(|s| s.with_backoff(my_backoff))
-    .groups(|g| g.handshake_timeout(Duration::from_secs(5)))
+let network = Network::builder("my-network")
+    .with_mdns_discovery(true)
+    .with_discovery(
+        discovery::Config::builder()
+            .with_events_backlog(200)
+    )
+    .with_streams(
+        streams::Config::builder()
+            .with_backoff(my_backoff)
+    )
+    .with_groups(
+        groups::Config::builder()
+            .with_handshake_timeout(Duration::from_secs(5))
+    )
     .build()
     .await?;</code></pre>
 <div class="table-wrapper">
@@ -6880,8 +6905,8 @@ a stable, well-known peer ID across restarts.</p>
 <tr><td><code>bootstrap_peers</code></td><td><code>Vec&lt;EndpointAddr&gt;</code></td><td>empty</td><td>Initial peers to connect to on startup</td></tr>
 <tr><td><code>tags</code></td><td><code>Vec&lt;Tag&gt;</code></td><td>empty</td><td>Tags advertised in local <code>PeerEntry</code></td></tr>
 <tr><td><code>purge_after</code></td><td><code>Duration</code></td><td><code>300s</code> (5 min)</td><td>Time before stale peer entries are purged</td></tr>
-<tr><td><code>max_time_drift</code></td><td><code>Duration</code></td><td><code>10s</code></td><td>Maximum acceptable timestamp drift</td></tr>
-<tr><td><code>announce_interval</code></td><td><code>Duration</code></td><td><code>15s</code></td><td>Interval between presence announcements</td></tr>
+<tr><td><code>max_time_drift</code></td><td><code>Duration</code></td><td><code>50s</code></td><td>Maximum acceptable timestamp drift</td></tr>
+<tr><td><code>announce_interval</code></td><td><code>Duration</code></td><td><code>45s</code></td><td>Interval between presence announcements</td></tr>
 <tr><td><code>announce_jitter</code></td><td><code>f32</code></td><td><code>0.5</code></td><td>Max jitter factor on announce interval</td></tr>
 <tr><td><code>rtt_probe_interval</code></td><td><code>Duration</code></td><td><code>30s</code></td><td>Interval for RTT ping probes to peers</td></tr>
 <tr><td><code>max_rtt</code></td><td><code>Option&lt;Duration&gt;</code></td><td><code>None</code></td><td>Maximum acceptable peer RTT</td></tr>
@@ -6891,11 +6916,12 @@ a stable, well-known peer ID across restarts.</p>
 </div>
 <p>Builder methods <code>with_bootstrap(peers)</code> and <code>with_tags(tags)</code> accept either a
 single item or an iterator (via <code>IntoIterOrSingle</code>):</p>
-<pre><code class="language-rust ignore">Network::builder()
-    .discovery(|d| d
-        .with_bootstrap(peer_addr)          // single peer
-        .with_tags(["validator", "relay"])   // multiple tags
-        .purge_after(Duration::from_secs(600))
+<pre><code class="language-rust ignore">Network::builder("my-network")
+    .with_discovery(
+        discovery::Config::builder()
+            .with_bootstrap(peer_addr)          // single peer
+            .with_tags(["validator", "relay"])   // multiple tags
+            .with_purge_after(Duration::from_secs(600))
     )</code></pre>
 <hr>
 <h2 id="streamsconfig"><a class="header" href="#streamsconfig"><code>streams::Config</code></a></h2>
@@ -6960,10 +6986,14 @@ let config = ConsensusConfig::builder()
     .election_timeout(Duration::from_secs(1))
     .build()
     .unwrap();</code></pre>
-<h3 id="leadership-deprioritization"><a class="header" href="#leadership-deprioritization">Leadership deprioritization</a></h3>
-<pre><code class="language-rust ignore">let config = ConsensusConfig::default().deprioritize_leadership();</code></pre>
-<p>This multiplies the election timeout by a factor, making this node less likely
-to become leader. Used by collection readers.</p>
+<h3 id="leadership-preference-2"><a class="header" href="#leadership-preference-2">Leadership preference</a></h3>
+<p>Leadership preference is controlled per-node through the <code>StateMachine</code> trait,
+not through <code>ConsensusConfig</code>:</p>
+<pre><code class="language-rust ignore">fn leadership_preference(&amp;self, _: &amp;PeerEntry) -&gt; LeadershipPreference {
+    LeadershipPreference::Observer  // or Reluctant { factor: 3 }, or Normal
+}</code></pre>
+<p>See <a href="#leadership-preference-1">State Machines &gt; Leadership Preference</a>
+for details. Collection readers return <code>Observer</code> automatically.</p>
 <hr>
 <h2 id="syncconfig-collections"><a class="header" href="#syncconfig-collections"><code>SyncConfig</code> (collections)</a></h2>
 <p>Controls snapshot-based state synchronization for collections.</p>
@@ -7038,7 +7068,7 @@ data.</p>
 <p>Enable the <code>prometheus</code> feature (on by default) and pass an address to the
 network builder:</p>
 <pre><code class="language-rust ignore">let network = Network::builder("my-app")
-    .with_prometheus_addr("0.0.0.0:9000".parse().unwrap())
+    .with_prometheus_addr("0.0.0.0:9000".parse()?)
     .build()
     .await?;</code></pre>
 <p>An HTTP server starts at the given address and responds to any <code>GET</code> request
@@ -7159,7 +7189,7 @@ network and omit <code>with_prometheus_addr</code>:</p>
 metrics::set_global_recorder(my_recorder).unwrap();
 
 // build without the built-in exporter
-let network = Network::builder("my-app").build().await?;</code></pre>
+let network = Network::new("my-app").await?;</code></pre>
 <p>All <code>mosaik.*</code> metrics will flow through your recorder automatically.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="error-handling-9"><a class="header" href="#error-handling-9">Error Handling</a></h1>

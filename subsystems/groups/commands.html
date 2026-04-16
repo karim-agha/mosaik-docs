@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-5ae5e99c.js";
+            window.path_to_searchindex_js = "../../searchindex-9160cd77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-6d32b89e.js"></script>
@@ -246,9 +246,9 @@ println!("Local counter value: {} (at index {})", result.result, result.at_posit
 <p>Forwards the query to the current leader, guaranteeing linearizable reads:</p>
 <pre><code class="language-rust ignore">let result = group.query(CounterQuery::Value, Consistency::Strong).await?;
 println!("Leader counter value: {} (at index {})", *result, result.state_position());</code></pre>
-<h3 id="committedqueryresult"><a class="header" href="#committedqueryresult">CommittedQueryResult</a></h3>
-<p>Query results are wrapped in <code>CommittedQueryResult&lt;M&gt;</code>:</p>
-<pre><code class="language-rust ignore">pub struct CommittedQueryResult&lt;M: StateMachine&gt; {
+<h3 id="queryresultat"><a class="header" href="#queryresultat">QueryResultAt</a></h3>
+<p>Query results are wrapped in <code>QueryResultAt&lt;M&gt;</code>:</p>
+<pre><code class="language-rust ignore">pub struct QueryResultAt&lt;M: StateMachine&gt; {
     pub result: M::QueryResult,    // The actual result
     pub at_position: Index,        // Log index at query time
 }</code></pre>
@@ -258,9 +258,8 @@ println!("Leader counter value: {} (at index {})", *result, result.state_positio
 // Deref to the inner result
 let value: i64 = *result;
 
-// Or access explicitly
-let position = result.state_position();
-let inner = result.into(); // Consume and get M::QueryResult</code></pre>
+// Or access the log position
+let position = result.at_position;</code></pre>
 <h3 id="query-errors"><a class="header" href="#query-errors">Query Errors</a></h3>
 <pre><code class="language-rust ignore">pub enum QueryError&lt;M: StateMachine&gt; {
     Offline(M::Query),   // Node offline; query returned

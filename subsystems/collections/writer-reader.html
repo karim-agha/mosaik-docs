@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-5ae5e99c.js";
+            window.path_to_searchindex_js = "../../searchindex-9160cd77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-6d32b89e.js"></script>
@@ -293,16 +293,19 @@ compile time.</p>
 </li>
 <li>
 <p><strong>Leadership priority</strong> — Readers return a <code>ConsensusConfig</code> with
-<code>deprioritize_leadership()</code>, which increases their election timeout. This
-makes it less likely for a reader to become the Raft leader, keeping
-leadership on writer nodes where write operations are handled directly
-rather than being forwarded.</p>
+<code>LeadershipPreference::Observer</code>, which prevents them from self-nominating
+and excludes them from the quorum denominator. This keeps leadership on
+writer nodes where write operations are handled directly rather than being
+forwarded, and avoids slow reader acknowledgment gating write latency.</p>
 </li>
 </ol>
 <pre><code class="language-rust ignore">// Inside every collection's StateMachine impl:
-fn consensus_config(&amp;self) -&gt; Option&lt;ConsensusConfig&gt; {
-    (!self.is_writer)
-        .then(|| ConsensusConfig::default().deprioritize_leadership())
+fn leadership_preference(&amp;self, _: &amp;PeerEntry) -&gt; LeadershipPreference {
+    if self.is_writer {
+        LeadershipPreference::Normal
+    } else {
+        LeadershipPreference::Observer
+    }
 }</code></pre>
 <h2 id="shared-read-api"><a class="header" href="#shared-read-api">Shared read API</a></h2>
 <p>Both writers and readers have identical read access. The read methods are

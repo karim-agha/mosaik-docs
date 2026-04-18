@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-1c914be6.js";
+            window.path_to_searchindex_js = "searchindex-49c8e102.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-bfbcddc8.js"></script>
@@ -1889,6 +1889,30 @@ Tdx::new()
 Tdx::new()
     .require_mrtd("aaa...")
     .not_before(Utc::now() - Duration::from_secs(86400))</code></pre>
+<h2 id="combining-tdx-with-other-validators"><a class="header" href="#combining-tdx-with-other-validators">Combining TDX with Other Validators</a></h2>
+<p>TDX is not the only ticket type mosaik supports. You can combine TDX attestation with JWT validation, custom <code>TicketValidator</code> implementations, or any mix — just add multiple <code>require_ticket</code> entries. Peers must satisfy <strong>all</strong> of them to be accepted.</p>
+<p>For example, a stream that requires both a valid TDX attestation <strong>and</strong> a JWT signed by a known authority:</p>
+<pre><code class="language-rust ignore">use mosaik::tdx::Tdx;
+use mosaik::tickets::{Jwt, Es256};
+
+declare::stream!(
+    pub SecureStream = MyDatum, "secure.data",
+    consumer require_ticket: Tdx::new()
+        .require_mrtd("91eb2b44..."),
+    consumer require_ticket: Jwt::with_key(Es256::hex(
+        "0298a82ebe69ad57e0f7d5c2809a..."
+    )).allow_issuer("my-auth-service"),
+);</code></pre>
+<p>Or a collection gated by TDX measurements and a custom validator:</p>
+<pre><code class="language-rust ignore">declare::collection!(
+    pub SecureMap =
+        mosaik::collections::Map&lt;String, String&gt;,
+    "secure.map",
+    require_ticket: Tdx::new()
+        .require_own_mrtd().expect("TDX support"),
+    require_ticket: MyCustomValidator::new(),
+);</code></pre>
+<p>This composability means you can layer hardware attestation on top of application-level authorization. TDX proves the peer is running the right code inside an enclave; JWT (or any other validator) proves the peer is authorized by your identity system. Neither alone is sufficient — both must pass.</p>
 <h2 id="key-takeaways-3"><a class="header" href="#key-takeaways-3">Key Takeaways</a></h2>
 <ol>
 <li><strong>TEE attestation is just a ticket</strong> — mosaik’s <code>require_ticket</code> API treats TDX quotes the same as JWT tokens or custom credentials. No special protocol needed.</li>

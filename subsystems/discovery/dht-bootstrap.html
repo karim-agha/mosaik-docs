@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-9160cd77.js";
+            window.path_to_searchindex_js = "../../searchindex-eda0774b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-6d32b89e.js"></script>
+        <script src="../../toc-2c1e7857.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -215,7 +215,7 @@
 <pre><code class="language-rust ignore">let network = Network::builder(network_id)
     .with_discovery(
         discovery::Config::builder()
-            .no_dht_bootstrap()
+            .no_auto_bootstrap()
             .with_bootstrap(bootstrap_addr)
     )
     .build()
@@ -227,7 +227,7 @@
 <tr><th>Option</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>no_dht_bootstrap</code></td><td><code>false</code></td><td>Disables the DHT bootstrap mechanism entirely.</td></tr>
+<tr><td><code>no_auto_bootstrap</code></td><td><code>false</code></td><td>Disables the DHT bootstrap mechanism entirely.</td></tr>
 <tr><td><code>bootstrap_peers</code></td><td><code>[]</code></td><td>Explicit peers to connect to on startup (via <code>with_bootstrap</code>).</td></tr>
 </tbody>
 </table>

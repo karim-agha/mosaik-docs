@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9160cd77.js";
+            window.path_to_searchindex_js = "../searchindex-eda0774b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6d32b89e.js"></script>
+        <script src="../toc-2c1e7857.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -191,8 +191,8 @@
 </thead>
 <tbody>
 <tr><td>DHT Bootstrap</td><td>Mainline DHT (pkarr)</td><td>Automatic peer discovery via shared <code>NetworkId</code></td></tr>
-<tr><td>Announce</td><td><code>/mosaik/discovery/announce/1.0</code></td><td>Real-time gossip broadcasts via iroh-gossip</td></tr>
-<tr><td>Catalog Sync</td><td><code>/mosaik/discovery/sync/1.0</code></td><td>Full bidirectional catalog exchange for catch-up</td></tr>
+<tr><td>Announce</td><td><code>/mosaik/announce</code></td><td>Real-time gossip broadcasts via iroh-gossip</td></tr>
+<tr><td>Catalog Sync</td><td><code>/mosaik/catalog-sync</code></td><td>Full bidirectional catalog exchange for catch-up</td></tr>
 </tbody>
 </table>
 </div>
@@ -228,14 +228,15 @@ let network = Network::builder(network_id)
 <tbody>
 <tr><td><code>bootstrap_peers</code></td><td><code>[]</code></td><td>Initial peers to connect to on startup</td></tr>
 <tr><td><code>tags</code></td><td><code>[]</code></td><td>Tags to advertise about this node</td></tr>
-<tr><td><code>announce_interval</code></td><td>45s</td><td>How often to re-announce via gossip</td></tr>
+<tr><td><code>announce_interval</code></td><td>15s</td><td>How often to re-announce via gossip</td></tr>
 <tr><td><code>announce_jitter</code></td><td>0.5</td><td>Max jitter factor (0.0–1.0) for announce timing</td></tr>
 <tr><td><code>purge_after</code></td><td>300s</td><td>Duration after which stale entries are purged</td></tr>
-<tr><td><code>max_time_drift</code></td><td>50s</td><td>Maximum acceptable clock drift between peers</td></tr>
+<tr><td><code>max_time_drift</code></td><td>10s</td><td>Maximum acceptable clock drift between peers</td></tr>
 <tr><td><code>events_backlog</code></td><td>100</td><td>Past events retained in event broadcast channel</td></tr>
 <tr><td><code>rtt_probe_interval</code></td><td>30s</td><td>Interval for RTT ping probes to cataloged peers</td></tr>
 <tr><td><code>max_rtt</code></td><td><code>None</code></td><td>Maximum acceptable RTT for peers (see below)</td></tr>
-<tr><td><code>no_dht_bootstrap</code></td><td><code>false</code></td><td>Disables the DHT bootstrap mechanism entirely</td></tr>
+<tr><td><code>dht_publish_interval</code></td><td>300s</td><td>How often to publish to the DHT (<code>None</code> to disable)</td></tr>
+<tr><td><code>dht_poll_interval</code></td><td>60s</td><td>How often to poll the DHT for peers (<code>None</code> to disable)</td></tr>
 </tbody>
 </table>
 </div>
@@ -300,7 +301,7 @@ let mut watch = discovery.catalog_watch();
 loop {
     watch.changed().await?;
     let catalog = watch.borrow();
-    println!("Catalog updated: {} peers", catalog.peers_count());
+    println!("Catalog updated: {} peers", catalog.len());
 }</code></pre>
 <h3 id="dialing-peers"><a class="header" href="#dialing-peers">Dialing Peers</a></h3>
 <pre><code class="language-rust ignore">// Connect to bootstrap peers manually

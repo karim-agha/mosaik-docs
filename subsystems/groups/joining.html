@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-9160cd77.js";
+            window.path_to_searchindex_js = "../../searchindex-eda0774b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-6d32b89e.js"></script>
+        <script src="../../toc-2c1e7857.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -264,20 +264,13 @@ let group = network.groups()
 </table>
 </div>
 <h3 id="leadership-preference"><a class="header" href="#leadership-preference">Leadership Preference</a></h3>
-<p>Leadership preference is configured per-node through the <code>StateMachine</code> trait,
-not through <code>ConsensusConfig</code>. Override <code>leadership_preference()</code> to control
-whether a node actively participates in elections:</p>
-<pre><code class="language-rust ignore">use mosaik::LeadershipPreference;
+<p>Nodes can deprioritize leadership to prefer being followers:</p>
+<pre><code class="language-rust ignore">// 3x longer election timeout (default multiplier)
+let config = ConsensusConfig::default().deprioritize_leadership();
 
-fn leadership_preference(&amp;self, _: &amp;PeerEntry) -&gt; LeadershipPreference {
-    // Never self-nominate, don't count toward quorum
-    LeadershipPreference::Observer
-
-    // Or: longer election timeouts (3x default), still eligible
-    // LeadershipPreference::reluctant()
-}</code></pre>
-<p>See <a href="state-machines.html#leadership-preference">State Machines &gt; Leadership Preference</a>
-for details on the three variants (<code>Normal</code>, <code>Reluctant</code>, <code>Observer</code>).</p>
+// Custom multiplier
+let config = ConsensusConfig::default().deprioritize_leadership_by(5);</code></pre>
+<p>This multiplies both <code>election_timeout</code> and <code>bootstrap_delay</code>, reducing the chance of becoming leader.</p>
 <h2 id="ticket-based-peer-authentication"><a class="header" href="#ticket-based-peer-authentication">Ticket-Based Peer Authentication</a></h2>
 <p>By default, any peer that knows the <code>GroupKey</code> can join a group. To add an
 extra layer of verification, call <code>.require_ticket()</code> with a

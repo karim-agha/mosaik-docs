@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Identity &amp; Networking - Mosaik</title>
+        <title>Building a P2P Group Chat - Mosaik</title>
 
 
         <!-- Custom HTML head -->
@@ -146,7 +146,7 @@
                         <a href="https://github.com/flashbots/mosaik" title="Git repository" aria-label="Git repository">
                             <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
                         </a>
-                        <a href="https://github.com/flashbots/mosaik/edit/main/book/src/concepts/identity.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/flashbots/mosaik/edit/main/book/src/tutorials/group-chat.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
                         </a>
 
@@ -180,126 +180,265 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="identity--networking"><a class="header" href="#identity--networking">Identity &amp; Networking</a></h1>
-<p>Mosaik’s identity system is built on cryptographic keys and <strong>intent-addressed</strong> hashing. Every identifier in the system — networks, peers, streams, groups, collections — is a 32-byte <code>Digest</code> (blake3 hash).</p>
-<p>Unlike content-addressed systems (Git, IPFS) where names are derived from the data itself, mosaik identifiers are derived from the <em>intent</em> — a human-readable string describing the resource’s purpose. Two nodes that independently declare the same intent (e.g., <code>"prices"</code>) converge on the same identifier without any prior coordination. This makes forward references and independent declaration possible: you can name a resource before it exists.</p>
-<h2 id="uniqueid-the-universal-identifier"><a class="header" href="#uniqueid-the-universal-identifier">UniqueId: The Universal Identifier</a></h2>
-<p>At the core of mosaik’s identity system is <code>Digest</code> — a 32-byte blake3 hash that serves as the universal identifier type:</p>
-<pre><code class="language-rust ignore">use mosaik::Digest;
-
-// From a string (hashes the string if not valid hex)
-let id: UniqueId = "my-network".into();
-
-// From raw bytes
-let id = UniqueId::from_bytes([0u8; 32]);
-
-// Random
-let id = UniqueId::random();
-
-// Compile-time constants via the unique_id! macro
-use mosaik::unique_id;
-
-// From a 64-char hex string (decoded directly):
-const HEX_ID: UniqueId = unique_id!(
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-);
-
-// From any arbitrary string (blake3-hashed at compile time):
-const NAMED_ID: UniqueId = unique_id!("my-stream-name");
-
-// Deterministic derivation
-let derived = id.derive("sub-identifier");</code></pre>
-<p>All the following types are aliases for <code>Digest</code>:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Type</th><th>Alias For</th><th>Identifies</th></tr>
-</thead>
-<tbody>
-<tr><td><code>UniqueId</code></td><td><code>Digest</code></td><td>General-purpose unique identifier</td></tr>
-<tr><td><code>NetworkId</code></td><td><code>UniqueId</code></td><td>A mosaik network (derived from name)</td></tr>
-<tr><td><code>Tag</code></td><td><code>UniqueId</code></td><td>A capability or role label</td></tr>
-<tr><td><code>StreamId</code></td><td><code>UniqueId</code></td><td>A data stream (derived from type name)</td></tr>
-<tr><td><code>GroupId</code></td><td><code>UniqueId</code></td><td>A consensus group (derived from key + config)</td></tr>
-<tr><td><code>StoreId</code></td><td><code>UniqueId</code></td><td>A replicated collection instance</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="peerid-node-identity"><a class="header" href="#peerid-node-identity">PeerId: Node Identity</a></h2>
-<p>A <code>PeerId</code> is the node’s public key, derived from its secret key. It’s globally unique across all mosaik networks.</p>
-<pre><code class="language-rust ignore">use mosaik::{Network, PeerId};
-use iroh::SecretKey;
-
-// Random identity (default when using Network::new)
-let network = Network::new(network_id).await?;
-let my_id: &amp;PeerId = &amp;network.local().id();
-
-// Stable identity via explicit secret key
-let secret = SecretKey::generate(&amp;mut rand::rng());
-let network = Network::builder(network_id)
-    .with_secret_key(secret)
-    .build()
-    .await?;</code></pre>
-<p>For bootstrap nodes and other long-lived infrastructure, you should use a fixed secret key so the node’s <code>PeerId</code> (and therefore its address) remains stable across restarts.</p>
-<h2 id="networkid-network-isolation"><a class="header" href="#networkid-network-isolation">NetworkId: Network Isolation</a></h2>
-<p>A <code>NetworkId</code> is a <code>Digest</code> derived from a name string. Nodes can only connect to peers sharing the same <code>NetworkId</code>:</p>
-<pre><code class="language-rust ignore">use mosaik::NetworkId;
-
-// These produce the same NetworkId
-let id1: NetworkId = "my-app".into();
-let id2: NetworkId = "my-app".into();
-assert_eq!(id1, id2);
-
-// Different name → different network → can't communicate
-let other: NetworkId = "other-app".into();
-assert_ne!(id1, other);</code></pre>
-<p>The <code>NetworkId</code> also drives <strong>automatic peer discovery</strong>: nodes sharing the same <code>NetworkId</code> find each other through the <a href="../subsystems/discovery/dht-bootstrap.html">Mainline DHT</a> without requiring any hardcoded bootstrap peers. Simply using the same network name is enough for nodes to connect.</p>
-<h2 id="tags-capability-labels"><a class="header" href="#tags-capability-labels">Tags: Capability Labels</a></h2>
-<p>Tags are <code>Digest</code> values used to describe a node’s role or capabilities:</p>
-<pre><code class="language-rust ignore">use mosaik::Tag;
-
-let tag: Tag = "matcher".into();
-let another: Tag = "validator".into();</code></pre>
-<p>Tags are advertised through the discovery system and can be used to filter which peers a producer accepts or which producers a consumer subscribes to:</p>
-<pre><code class="language-rust ignore">// Only accept consumers that have the "authorized" tag
-let producer = network.streams().producer::&lt;Order&gt;()
-    .require(|peer| peer.tags.contains(&amp;"authorized".into()))
-    .build()?;</code></pre>
-<h2 id="streamid-stream-identity"><a class="header" href="#streamid-stream-identity">StreamId: Stream Identity</a></h2>
-<p>By default, a <code>StreamId</code> is derived from the Rust type name:</p>
-<pre><code class="language-rust ignore">use mosaik::StreamId;
-
-// Automatically derived from the type name
-let producer = network.streams().produce::&lt;SensorReading&gt;();
-
-// Or set explicitly
-let producer = network.streams().producer::&lt;SensorReading&gt;()
-    .with_stream_id("custom-stream-name")
-    .build()?;</code></pre>
-<h2 id="groupid-group-identity"><a class="header" href="#groupid-group-identity">GroupId: Group Identity</a></h2>
-<p>A <code>GroupId</code> is deterministically derived from multiple inputs:</p>
-<pre><code class="language-text">GroupId = hash(
-    GroupKey,
-    ConsensusConfig,
-    StateMachine::signature(),
-    StateSync::signature()
-)
+                        <h1 id="building-a-p2p-group-chat"><a class="header" href="#building-a-p2p-group-chat">Building a P2P Group Chat</a></h1>
+<p>This tutorial walks through the <a href="https://github.com/flashbots/mosaik/blob/main/examples/group-chat.rs">group-chat example</a> — a fully decentralized chat room where participants discover each other automatically and share state via replicated collections.</p>
+<h2 id="what-are-we-building"><a class="header" href="#what-are-we-building">What Are We Building?</a></h2>
+<p>A peer-to-peer chat application where:</p>
+<ul>
+<li>Each running instance is one participant</li>
+<li>Everyone in the same “room” sees the same messages and participant list</li>
+<li>No central server — peers find each other via mosaik’s gossip and DHT</li>
+<li>Message history and user presence are replicated across all nodes</li>
+</ul>
+<pre><code class="language-text">   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+   │   Alice      │    │   Bob        │    │   Charlie    │
+   │              │    │              │    │              │
+   │  Map&lt;Users&gt;  │◄──►│  Map&lt;Users&gt;  │◄──►│  Map&lt;Users&gt;  │
+   │  Vec&lt;Msgs&gt;   │◄──►│  Vec&lt;Msgs&gt;   │◄──►│  Vec&lt;Msgs&gt;   │
+   └──────────────┘    └──────────────┘    └──────────────┘
+          ▲                    ▲                    ▲
+          └────────────────────┴────────────────────┘
+                    gossip + DHT discovery
 </code></pre>
-<p>This ensures that nodes with different configurations, different state machines, or different group secrets <strong>cannot</strong> accidentally join the same group.</p>
-<h2 id="endpoint-addresses"><a class="header" href="#endpoint-addresses">Endpoint Addresses</a></h2>
-<p>Nodes are addressed using <code>EndpointAddr</code> from iroh, which encodes the public key and optional relay URL. This is what you pass to bootstrap peers:</p>
-<pre><code class="language-rust ignore">let addr = network.local().addr();
-// addr contains: PeerId + relay URL + direct addresses</code></pre>
+<p>Every participant holds a full replica of two shared collections:</p>
+<ol>
+<li><strong><code>Map&lt;String, UserInfo&gt;</code></strong> — who is currently in the room</li>
+<li><strong><code>Vec&lt;Message&gt;</code></strong> — the chat history in append order</li>
+</ol>
+<p>Under the hood, mosaik replicates both collections through Raft consensus, so all nodes converge on the same state automatically.</p>
+<h2 id="project-setup"><a class="header" href="#project-setup">Project Setup</a></h2>
+<p>The group-chat example is a single file at <code>examples/group-chat.rs</code>. It uses these dependencies:</p>
+<pre><code class="language-toml">[dependencies]
+mosaik = "0.3"
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+anyhow = "1"
+</code></pre>
+<h2 id="step-1-define-shared-types"><a class="header" href="#step-1-define-shared-types">Step 1: Define Shared Types</a></h2>
+<p>First, define the data that will be replicated. Because these types derive <code>Serialize + Deserialize</code>, they automatically implement <code>Datum</code> and work with mosaik collections:</p>
+<pre><code class="language-rust ignore">use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
+struct UserInfo {
+    nickname: String,
+    color: u8,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct Message {
+    from: String,
+    color: u8,
+    text: String,
+}</code></pre>
+<h2 id="step-2-declare-stable-identifiers"><a class="header" href="#step-2-declare-stable-identifiers">Step 2: Declare Stable Identifiers</a></h2>
+<p>Every mosaik collection needs a <code>StoreId</code> so that all participants reference the same replicated state. The <code>unique_id!()</code> macro derives a deterministic ID from a string at compile time:</p>
+<pre><code class="language-rust ignore">use mosaik::{NetworkId, StoreId, unique_id};
+
+const NETWORK_SALT: NetworkId =
+    unique_id!("mosaik.example.group-chat");
+const USERS: StoreId =
+    unique_id!("mosaik.example.group-chat.users");
+const MESSAGES: StoreId =
+    unique_id!("mosaik.example.group-chat.messages");</code></pre>
+<ul>
+<li><strong><code>NETWORK_SALT</code></strong> — a base <code>NetworkId</code> that gets further derived per room (so each room is its own isolated network)</li>
+<li><strong><code>USERS</code></strong> / <strong><code>MESSAGES</code></strong> — stable <code>StoreId</code>s shared by all participants</li>
+</ul>
+<p>All nodes that use the same <code>StoreId</code> automatically join the same underlying Raft group and replicate the same data.</p>
+<h2 id="step-3-create-the-network"><a class="header" href="#step-3-create-the-network">Step 3: Create the Network</a></h2>
+<p>Each room maps to its own mosaik network. The room name is combined with the base salt to produce a unique <code>NetworkId</code>:</p>
+<pre><code class="language-rust ignore">let network = Network::builder(
+        NETWORK_SALT.derive(args.room.as_str())
+    )
+    .with_discovery(
+        discovery::Config::builder()
+            .with_bootstrap(args.peer)
+    )
+    .build()
+    .await?;
+
+println!("local peer id: {}", network.local().id());</code></pre>
+<p>Key points:</p>
+<ul>
+<li><strong><code>NETWORK_SALT.derive(room)</code></strong> — deterministically derives a unique network ID per room name. Everyone passing <code>--room=lobby</code> ends up on the same network.</li>
+<li><strong><code>with_bootstrap(args.peer)</code></strong> — optionally seeds discovery with a known peer ID. Without it, nodes still find each other via DHT, but it may take a few seconds longer.</li>
+</ul>
+<h2 id="step-4-open-replicated-collections"><a class="header" href="#step-4-open-replicated-collections">Step 4: Open Replicated Collections</a></h2>
+<p>With the network running, open writer handles to both collections:</p>
+<pre><code class="language-rust ignore">let users =
+    collections::Map::&lt;String, UserInfo&gt;::writer(&amp;network, USERS);
+let messages =
+    collections::Vec::&lt;Message&gt;::writer(&amp;network, MESSAGES);
+
+// Block until we've joined both collection groups
+// and caught up with peers.
+users.when().online().await;
+messages.when().online().await;</code></pre>
+<ul>
+<li><strong><code>Map::writer()</code></strong> / <strong><code>Vec::writer()</code></strong> — creates a read-write handle to the replicated collection. Every node opens a writer because every participant can both read and write.</li>
+<li><strong><code>when().online().await</code></strong> — a reactive condition that resolves once the node has joined the underlying Raft group and synced any existing state from peers. After this returns, reads reflect the current replicated state.</li>
+</ul>
+<h2 id="step-5-register-and-display-state"><a class="header" href="#step-5-register-and-display-state">Step 5: Register and Display State</a></h2>
+<p>After going online, insert ourselves into the user map and print any existing participants and message history:</p>
+<pre><code class="language-rust ignore">// Register ourselves
+users
+    .insert(
+        network.local().id().to_string(),
+        UserInfo {
+            nickname: args.nickname.clone(),
+            color: args.color,
+        },
+    )
+    .await
+    .ok();
+
+// Print current participants
+let initial_users: HashMap&lt;String, UserInfo&gt; =
+    users.iter().collect();
+println!("--- {} participant(s) ---", initial_users.len());
+for u in initial_users.values() {
+    println!("  {}", u.nickname);
+}
+
+// Print message history
+let history: Vec&lt;_&gt; = messages.iter().collect();
+if !history.is_empty() {
+    println!(
+        "--- {} message(s) in history ---",
+        history.len()
+    );
+    for m in &amp;history {
+        println!("{}: {}", m.from, m.text);
+    }
+}</code></pre>
+<p>Because the collections are replicated, a node that joins late automatically receives the full history — there’s no separate “catch-up” protocol to implement.</p>
+<h2 id="step-6-the-main-loop"><a class="header" href="#step-6-the-main-loop">Step 6: The Main Loop</a></h2>
+<p>The core of the chat is a <code>tokio::select!</code> loop that handles three events: user input, shutdown, and periodic state polling:</p>
+<pre><code class="language-rust ignore">let (tx, mut rx) = mpsc::unbounded_channel::&lt;String&gt;();
+std::thread::spawn(move || {
+    for line in std::io::stdin().lock().lines()
+        .map_while(Result::ok)
+    {
+        if tx.send(line).is_err() { break; }
+    }
+});
+
+let mut displayed = history.len();
+let mut known_users = initial_users;
+let my_id = network.local().id().to_string();
+
+loop {
+    tokio::select! {
+        Some(text) = rx.recv() =&gt; {
+            // User typed a message — append it
+            let m = Message {
+                from: args.nickname.clone(),
+                color: args.color,
+                text,
+            };
+            messages.push_back(m).await.ok();
+        }
+        _ = tokio::signal::ctrl_c() =&gt; {
+            // Clean shutdown — remove ourselves
+            timeout(
+                Duration::from_secs(5),
+                users.remove(&amp;my_id),
+            ).await.ok();
+            return Ok(());
+        }
+        () = tokio::time::sleep(
+            Duration::from_millis(100)
+        ) =&gt; {}
+    }
+
+    // ... detect joins/leaves and print new messages
+}</code></pre>
+<p>Stdin is read in a dedicated OS thread (it’s blocking I/O) and fed into the async loop via an <code>mpsc</code> channel. On Ctrl-C, the node removes itself from the user map before exiting so that others see a clean “left” notification.</p>
+<h2 id="step-7-detect-joins-and-leaves"><a class="header" href="#step-7-detect-joins-and-leaves">Step 7: Detect Joins and Leaves</a></h2>
+<p>On every tick, the loop diffs the current user map against its last-known snapshot to detect topology changes:</p>
+<pre><code class="language-rust ignore">let current_users: HashMap&lt;String, UserInfo&gt; =
+    users.iter().collect();
+
+for (id, info) in &amp;current_users {
+    if id != &amp;my_id &amp;&amp; !known_users.contains_key(id) {
+        println!("* {} joined", info.nickname);
+    }
+}
+for (id, info) in &amp;known_users {
+    if id != &amp;my_id &amp;&amp; !current_users.contains_key(id) {
+        println!("* {} left", info.nickname);
+    }
+}
+known_users = current_users;</code></pre>
+<p>This works because the replicated <code>Map</code> converges across all nodes — when a new participant inserts themselves, every other node’s local replica eventually reflects the change.</p>
+<h2 id="step-8-handle-raft-reconciliation"><a class="header" href="#step-8-handle-raft-reconciliation">Step 8: Handle Raft Reconciliation</a></h2>
+<p>When two nodes start at nearly the same time, each may briefly form its own single-node Raft group. When they discover each other, Raft reconciles the logs — the “losing” node’s log is discarded. This means a node’s own user-map insertion might vanish:</p>
+<pre><code class="language-rust ignore">// Re-register ourselves if our entry was lost
+if !known_users.contains_key(&amp;my_id) {
+    users
+        .insert(my_id.clone(), UserInfo {
+            nickname: args.nickname.clone(),
+            color: args.color,
+        })
+        .await
+        .ok();
+}</code></pre>
+<p>This is a practical pattern for any mosaik application: after Raft reconciliation, check that your local state is still present and re-apply if necessary.</p>
+<h2 id="running-it"><a class="header" href="#running-it">Running It</a></h2>
+<p>Start multiple instances in separate terminals:</p>
+<pre><code class="language-bash"># Terminal 1
+cargo run --example group-chat -- --nickname Alice
+
+# Terminal 2
+cargo run --example group-chat -- --nickname Bob --color 33
+
+# Terminal 3
+cargo run --example group-chat -- --nickname Charlie --color 34
+</code></pre>
+<p>Nodes discover each other automatically via DHT. To speed up initial discovery, pass a peer ID:</p>
+<pre><code class="language-bash"># Terminal 1 prints: local peer id: &lt;alice-peer-id&gt;
+
+# Terminal 2 — connect directly to Alice
+cargo run --example group-chat -- \
+    --nickname Bob --color 33 \
+    --peer &lt;alice-peer-id&gt;
+</code></pre>
+<p>You can also use <code>--room</code> to create separate chat rooms:</p>
+<pre><code class="language-bash">cargo run --example group-chat -- --nickname Alice --room dev
+cargo run --example group-chat -- --nickname Bob --room dev
+</code></pre>
+<p>Expected output (Alice’s terminal):</p>
+<pre><code class="language-text">Joining room 'lobby' as Alice ...
+local peer id: 7bqnlah...
+--- 1 participant(s) ---
+  Alice
+--- start typing, Ctrl-C to quit ---
+
+* Bob joined
+* Charlie joined
+Bob: hey everyone!
+Charlie: what's up?
+</code></pre>
+<h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
+<ol>
+<li><strong>Collections as shared state</strong> — <code>Map</code> and <code>Vec</code> give you replicated data structures with no custom state machine needed. Insert, remove, and iterate — replication happens automatically.</li>
+<li><strong><code>unique_id!()</code> for stable addressing</strong> — compile-time deterministic IDs ensure all participants reference the same collections without coordination.</li>
+<li><strong><code>NetworkId::derive()</code> for namespacing</strong> — deriving a network ID from a room name creates isolated networks per room with a single line of code.</li>
+<li><strong><code>when().online().await</code></strong> — reactive conditions let you wait for the system to be ready before proceeding, without polling or timeouts.</li>
+<li><strong>Raft reconciliation awareness</strong> — when nodes start concurrently, log reconciliation can discard local writes. Re-checking and re-inserting is the idiomatic pattern.</li>
+<li><strong>Zero-server architecture</strong> — gossip and DHT handle all discovery. No central server, no signaling service, no message broker.</li>
+</ol>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../concepts/architecture.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../tutorials/orderbook.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../concepts/self-organization.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../subsystems/network.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -309,11 +448,11 @@ let producer = network.streams().producer::&lt;SensorReading&gt;()
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../concepts/architecture.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../tutorials/orderbook.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../concepts/self-organization.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../subsystems/network.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

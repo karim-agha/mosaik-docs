@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-9160cd77.js";
+            window.path_to_searchindex_js = "../../searchindex-eda0774b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-6d32b89e.js"></script>
+        <script src="../../toc-2c1e7857.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -194,8 +194,8 @@ for (peer_id, entry) in catalog.iter() {
     println!("Peer {}: {:?}", peer_id, entry.tags);
 }
 
-// Count peers (excludes the local node)
-println!("Known peers: {}", catalog.peers_count());</code></pre>
+// Count peers
+println!("Known peers: {}", catalog.len());</code></pre>
 <h3 id="watching-for-changes"><a class="header" href="#watching-for-changes">Watching for Changes</a></h3>
 <pre><code class="language-rust ignore">let mut watch = discovery.catalog_watch();
 
@@ -205,27 +205,36 @@ loop {
 
     // Borrow the latest snapshot
     let catalog = watch.borrow();
-    println!("Catalog updated, {} peers", catalog.peers_count());
+    println!("Catalog updated, {} peers", catalog.len());
 }</code></pre>
 <p>The watch receiver always has the latest value. Multiple calls to <code>changed()</code> may skip intermediate updates if the catalog changes faster than you observe it.</p>
 <h2 id="peerentry"><a class="header" href="#peerentry">PeerEntry</a></h2>
-<p>Each peer in the catalog is represented by a <code>PeerEntry</code>. All fields are
-private — access them through accessor methods:</p>
-<h3 id="accessor-methods"><a class="header" href="#accessor-methods">Accessor Methods</a></h3>
+<p>Each peer in the catalog is represented by a <code>PeerEntry</code>:</p>
+<pre><code class="language-rust ignore">pub struct PeerEntry {
+    pub network_id: NetworkId,
+    pub peer_id: PeerId,
+    pub addr: EndpointAddr,
+    pub tags: BTreeSet&lt;Tag&gt;,
+    pub streams: BTreeSet&lt;StreamId&gt;,
+    pub groups: BTreeSet&lt;GroupId&gt;,
+    pub tickets: BTreeMap&lt;UniqueId, Ticket&gt;,
+    pub version: PeerEntryVersion,
+}</code></pre>
+<h3 id="fields"><a class="header" href="#fields">Fields</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Method</th><th>Returns</th><th>Description</th></tr>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>id()</code></td><td><code>&amp;PeerId</code></td><td>The peer’s public key</td></tr>
-<tr><td><code>network_id()</code></td><td><code>&amp;NetworkId</code></td><td>Which network this peer belongs to</td></tr>
-<tr><td><code>protocol_version()</code></td><td><code>&amp;Version</code></td><td>The mosaik protocol version used by the peer</td></tr>
-<tr><td><code>address()</code></td><td><code>&amp;EndpointAddr</code></td><td>Connection address (public key + relay + direct addrs)</td></tr>
-<tr><td><code>tags()</code></td><td><code>&amp;BTreeSet&lt;Tag&gt;</code></td><td>Capability labels (e.g., <code>"matcher"</code>, <code>"validator"</code>)</td></tr>
-<tr><td><code>streams()</code></td><td><code>&amp;BTreeSet&lt;StreamId&gt;</code></td><td>Streams this peer produces</td></tr>
-<tr><td><code>groups()</code></td><td><code>&amp;BTreeSet&lt;GroupId&gt;</code></td><td>Groups this peer belongs to</td></tr>
-<tr><td><code>tickets()</code></td><td><code>&amp;BTreeMap&lt;UniqueId,Ticket&gt;</code></td><td>Auth tickets keyed by ticket id (see <a href="./tickets.html">Auth Tickets</a>)</td></tr>
+<tr><td><code>network_id</code></td><td><code>NetworkId</code></td><td>Which network this peer belongs to</td></tr>
+<tr><td><code>peer_id</code></td><td><code>PeerId</code></td><td>The peer’s public key</td></tr>
+<tr><td><code>addr</code></td><td><code>EndpointAddr</code></td><td>Connection address (public key + relay + direct addrs)</td></tr>
+<tr><td><code>tags</code></td><td><code>BTreeSet&lt;Tag&gt;</code></td><td>Capability labels (e.g., <code>"matcher"</code>, <code>"validator"</code>)</td></tr>
+<tr><td><code>streams</code></td><td><code>BTreeSet&lt;StreamId&gt;</code></td><td>Streams this peer produces</td></tr>
+<tr><td><code>groups</code></td><td><code>BTreeSet&lt;GroupId&gt;</code></td><td>Groups this peer belongs to</td></tr>
+<tr><td><code>tickets</code></td><td><code>BTreeMap&lt;UniqueId,Ticket&gt;</code></td><td>Auth tickets keyed by ticket id (see <a href="./tickets.html">Auth Tickets</a>)</td></tr>
+<tr><td><code>version</code></td><td><code>PeerEntryVersion</code></td><td>Two-part version for staleness detection</td></tr>
 </tbody>
 </table>
 </div>
@@ -244,7 +253,7 @@ let peer_id = my_entry.peer_id();</code></pre>
 <li><strong>Hidden</strong> from the public catalog API</li>
 <li><strong>Eventually removed</strong> if not refreshed</li>
 </ol>
-<p>The periodic gossip re-announce (every ~45s by default) keeps entries fresh. When a node departs gracefully, it broadcasts a departure message; ungraceful departures are detected by staleness.</p>
+<p>The periodic gossip re-announce (every ~15s by default) keeps entries fresh. When a node departs gracefully, it broadcasts a departure message; ungraceful departures are detected by staleness.</p>
 <h2 id="using-catalog-for-filtering"><a class="header" href="#using-catalog-for-filtering">Using Catalog for Filtering</a></h2>
 <p>The catalog is commonly used to filter peers in Streams. The <code>require</code>
 predicate receives a <code>PeerInfo</code>, which wraps <code>PeerEntry</code> with

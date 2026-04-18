@@ -35,10 +35,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-9160cd77.js";
+            window.path_to_searchindex_js = "../../searchindex-eda0774b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-6d32b89e.js"></script>
+        <script src="../../toc-2c1e7857.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -318,12 +318,11 @@ non-expiring.</p>
 <h3 id="2-issue-tickets-with-jwtticketbuilder"><a class="header" href="#2-issue-tickets-with-jwtticketbuilder">2. Issue tickets with <code>JwtTicketBuilder</code></a></h3>
 <p><code>JwtTicketBuilder</code> is the issuing counterpart to <code>Jwt</code>. It signs JWTs
 and wraps them as <code>Ticket</code> values ready for discovery:</p>
-<pre><code class="language-rust ignore">use mosaik::tickets::{Hs256, JwtTicketBuilder};
-use core::time::Duration;
+<pre><code class="language-rust ignore">use mosaik::tickets::{Hs256, JwtTicketBuilder, Expiration};
 
 let builder = JwtTicketBuilder::new(Hs256::new(secret))
     .issuer("my-app")
-    .expires_in(Duration::from_secs(3600));
+    .expires_at(Expiration::At(expiration_time));
 
 let ticket = builder.build(&amp;peer_id);
 network.discovery().add_ticket(ticket);</code></pre>
@@ -349,6 +348,7 @@ network.discovery().add_ticket(ticket);</code></pre>
 <tr><td><code>.issuer(s)</code></td><td>Set the <code>iss</code> claim</td></tr>
 <tr><td><code>.subject(s)</code></td><td>Override the <code>sub</code> claim (default: peer id in lower hex)</td></tr>
 <tr><td><code>.audience(s)</code></td><td>Set the <code>aud</code> claim</td></tr>
+<tr><td><code>.expires_at(expiration)</code></td><td>Set the expiration policy (<code>Expiration::At(dt)</code> or <code>Never</code>)</td></tr>
 <tr><td><code>.expires_in(duration)</code></td><td>Set expiration relative to current time</td></tr>
 <tr><td><code>.issued_at(datetime)</code></td><td>Override <code>iat</code> (default: current time)</td></tr>
 <tr><td><code>.not_before(datetime)</code></td><td>Set the <code>nbf</code> claim</td></tr>

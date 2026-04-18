@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9160cd77.js";
+            window.path_to_searchindex_js = "../searchindex-eda0774b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6d32b89e.js"></script>
+        <script src="../toc-2c1e7857.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -188,20 +188,12 @@ values, and how the pieces fit together.</p>
 accessible through fluent builder methods.</p>
 <pre><code class="language-rust ignore">use mosaik::Network;
 
-let network = Network::builder("my-network")
-    .with_mdns_discovery(true)
-    .with_discovery(
-        discovery::Config::builder()
-            .with_events_backlog(200)
-    )
-    .with_streams(
-        streams::Config::builder()
-            .with_backoff(my_backoff)
-    )
-    .with_groups(
-        groups::Config::builder()
-            .with_handshake_timeout(Duration::from_secs(5))
-    )
+let network = Network::builder()
+    .network_id("my-network")
+    .mdns_discovery(true)
+    .discovery(|d| d.events_backlog(200))
+    .streams(|s| s.with_backoff(my_backoff))
+    .groups(|g| g.handshake_timeout(Duration::from_secs(5)))
     .build()
     .await?;</code></pre>
 <div class="table-wrapper">
@@ -241,8 +233,8 @@ a stable, well-known peer ID across restarts.</p>
 <tr><td><code>bootstrap_peers</code></td><td><code>Vec&lt;EndpointAddr&gt;</code></td><td>empty</td><td>Initial peers to connect to on startup</td></tr>
 <tr><td><code>tags</code></td><td><code>Vec&lt;Tag&gt;</code></td><td>empty</td><td>Tags advertised in local <code>PeerEntry</code></td></tr>
 <tr><td><code>purge_after</code></td><td><code>Duration</code></td><td><code>300s</code> (5 min)</td><td>Time before stale peer entries are purged</td></tr>
-<tr><td><code>max_time_drift</code></td><td><code>Duration</code></td><td><code>50s</code></td><td>Maximum acceptable timestamp drift</td></tr>
-<tr><td><code>announce_interval</code></td><td><code>Duration</code></td><td><code>45s</code></td><td>Interval between presence announcements</td></tr>
+<tr><td><code>max_time_drift</code></td><td><code>Duration</code></td><td><code>10s</code></td><td>Maximum acceptable timestamp drift</td></tr>
+<tr><td><code>announce_interval</code></td><td><code>Duration</code></td><td><code>15s</code></td><td>Interval between presence announcements</td></tr>
 <tr><td><code>announce_jitter</code></td><td><code>f32</code></td><td><code>0.5</code></td><td>Max jitter factor on announce interval</td></tr>
 <tr><td><code>rtt_probe_interval</code></td><td><code>Duration</code></td><td><code>30s</code></td><td>Interval for RTT ping probes to peers</td></tr>
 <tr><td><code>max_rtt</code></td><td><code>Option&lt;Duration&gt;</code></td><td><code>None</code></td><td>Maximum acceptable peer RTT</td></tr>
@@ -252,12 +244,11 @@ a stable, well-known peer ID across restarts.</p>
 </div>
 <p>Builder methods <code>with_bootstrap(peers)</code> and <code>with_tags(tags)</code> accept either a
 single item or an iterator (via <code>IntoIterOrSingle</code>):</p>
-<pre><code class="language-rust ignore">Network::builder("my-network")
-    .with_discovery(
-        discovery::Config::builder()
-            .with_bootstrap(peer_addr)          // single peer
-            .with_tags(["validator", "relay"])   // multiple tags
-            .with_purge_after(Duration::from_secs(600))
+<pre><code class="language-rust ignore">Network::builder()
+    .discovery(|d| d
+        .with_bootstrap(peer_addr)          // single peer
+        .with_tags(["validator", "relay"])   // multiple tags
+        .purge_after(Duration::from_secs(600))
     )</code></pre>
 <hr>
 <h2 id="streamsconfig"><a class="header" href="#streamsconfig"><code>streams::Config</code></a></h2>
@@ -322,14 +313,10 @@ let config = ConsensusConfig::builder()
     .election_timeout(Duration::from_secs(1))
     .build()
     .unwrap();</code></pre>
-<h3 id="leadership-preference"><a class="header" href="#leadership-preference">Leadership preference</a></h3>
-<p>Leadership preference is controlled per-node through the <code>StateMachine</code> trait,
-not through <code>ConsensusConfig</code>:</p>
-<pre><code class="language-rust ignore">fn leadership_preference(&amp;self, _: &amp;PeerEntry) -&gt; LeadershipPreference {
-    LeadershipPreference::Observer  // or Reluctant { factor: 3 }, or Normal
-}</code></pre>
-<p>See <a href="../subsystems/groups/state-machines.html#leadership-preference">State Machines &gt; Leadership Preference</a>
-for details. Collection readers return <code>Observer</code> automatically.</p>
+<h3 id="leadership-deprioritization"><a class="header" href="#leadership-deprioritization">Leadership deprioritization</a></h3>
+<pre><code class="language-rust ignore">let config = ConsensusConfig::default().deprioritize_leadership();</code></pre>
+<p>This multiplies the election timeout by a factor, making this node less likely
+to become leader. Used by collection readers.</p>
 <hr>
 <h2 id="syncconfig-collections"><a class="header" href="#syncconfig-collections"><code>SyncConfig</code> (collections)</a></h2>
 <p>Controls snapshot-based state synchronization for collections.</p>

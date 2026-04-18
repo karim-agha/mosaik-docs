@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-eda0774b.js";
+            window.path_to_searchindex_js = "searchindex-1c914be6.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-2c1e7857.js"></script>
+        <script src="toc-bfbcddc8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1593,6 +1593,310 @@ Charlie: what's up?
 <li><strong><code>when().online().await</code></strong> — reactive conditions let you wait for the system to be ready before proceeding, without polling or timeouts.</li>
 <li><strong>Raft reconciliation awareness</strong> — when nodes start concurrently, log reconciliation can discard local writes. Re-checking and re-inserting is the idiomatic pattern.</li>
 <li><strong>Zero-server architecture</strong> — gossip and DHT handle all discovery. No central server, no signaling service, no message broker.</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="using-tdx-attestations"><a class="header" href="#using-tdx-attestations">Using TDX Attestations</a></h1>
+<p>This tutorial walks through the <a href="https://github.com/flashbots/mosaik/tree/main/examples/tee/tdx">TDX example</a> — a mosaik application that uses Intel TDX hardware attestation to enforce that only verified enclave guests can subscribe to streams and join replicated collections.</p>
+<h2 id="what-are-we-building-1"><a class="header" href="#what-are-we-building-1">What Are We Building?</a></h2>
+<p>A single binary that runs in two modes depending on the hardware it detects:</p>
+<ul>
+<li><strong>Producer mode</strong> (regular host) — publishes messages on a stream, validates that every consumer presents a TDX attestation with the correct firmware measurement before accepting the subscription</li>
+<li><strong>Consumer mode</strong> (inside TDX guest) — generates a hardware-signed attestation ticket, publishes it via discovery, subscribes to the secure stream, and writes received messages into a replicated map shared exclusively with identically-measured TDX peers</li>
+</ul>
+<pre><code class="language-text">┌───────────────────────┐          ┌──────────────────────────────────────┐
+│   Producer (host)     │          │  Consumer (TDX guest)                │
+│                       │          │                                      │
+│  SecureStream         │◄─────────│  TDX Quote + ExtraData               │
+│  .producer()          │  gossip  │  .install_own_ticket()               │
+│                       │          │                                      │
+│  sends messages ──────┼──────────┼─► receives messages                  │
+│  (if MR_TD matches)   │   QUIC   │  (validates against declared MRTD)   │
+│                       │          │                                      │
+│                       │          │  SecureObservers Map (Raft group)    │
+│                       │          │  ← only peers with same MRTD+RTMR2 → │
+│                       │          │  writes (peer_id, last_message)      │
+└───────────────────────┘          └──────────────────────────────────────┘
+</code></pre>
+<p>The key insight: mosaik’s TEE support integrates directly into the existing <code>require_ticket</code> infrastructure. TDX attestation is just another ticket type — you declare it on streams, collections, or groups, and mosaik handles validation automatically.</p>
+<h2 id="background-tdx-measurements"><a class="header" href="#background-tdx-measurements">Background: TDX Measurements</a></h2>
+<p>Intel TDX (Trust Domain Extensions) provides hardware-isolated virtual machines called Trust Domains. Each TD produces a <strong>Quote</strong> — a hardware-signed report containing measurement registers:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Register</th><th>What it measures</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>MR_TD</strong></td><td>The firmware/BIOS that booted the TD (OVMF, kernel, initramfs)</td></tr>
+<tr><td><strong>RTMR[0]</strong></td><td>Early boot firmware measurements</td></tr>
+<tr><td><strong>RTMR[1]</strong></td><td>OS loader and kernel measurements</td></tr>
+<tr><td><strong>RTMR[2]</strong></td><td>OS and application-level measurements</td></tr>
+<tr><td><strong>RTMR[3]</strong></td><td>Reserved for runtime measurements</td></tr>
+</tbody>
+</table>
+</div>
+<p>By checking these registers, you can cryptographically verify that a remote peer is running an exact known software stack inside a hardware-protected enclave.</p>
+<h2 id="project-setup-2"><a class="header" href="#project-setup-2">Project Setup</a></h2>
+<p>The TDX example is a workspace member at <code>examples/tee/tdx/</code>. It requires the <code>tdx</code> feature at runtime and the <code>tdx-builder-all</code> feature at build time:</p>
+<pre><code class="language-toml">[dependencies]
+mosaik = { version = "0.3", features = ["tdx"] }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+
+[build-dependencies]
+mosaik = { version = "0.3", features = ["tdx-builder-all"] }
+</code></pre>
+<p>The <code>tdx</code> feature pulls in the TDX runtime APIs (<code>network.tdx()</code>, <code>Tdx</code> validator, <code>TdxTicket</code>). The <code>tdx-builder-all</code> feature enables the build-time image builder that creates bootable TDX guest images and pre-computes measurements.</p>
+<h2 id="step-1-the-build-script"><a class="header" href="#step-1-the-build-script">Step 1: The Build Script</a></h2>
+<p>The build script does two things: generates a unique network ID per build, and creates the TDX guest image.</p>
+<pre><code class="language-rust ignore">fn main() {
+    // Unique build ID shared between host and guest binaries
+    let build_id = std::env::var("BUILD_ID").unwrap_or_else(|_| {
+        let id = mosaik::UniqueId::random().to_string();
+        unsafe { std::env::set_var("BUILD_ID", &amp;id) };
+        id
+    });
+    println!("cargo:rustc-env=BUILD_ID={build_id}");
+
+    // Build the TDX guest image
+    let build_output = match std::env::var("BUILD_TYPE").as_deref()
+    {
+        Err(_) | Ok("alpine") =&gt; {
+            mosaik::tee::tdx::build::alpine().build()
+        }
+        Ok("ubuntu") =&gt; {
+            mosaik::tee::tdx::build::ubuntu().build()
+        }
+        _ =&gt; panic!("Unknown BUILD_TYPE"),
+    };
+}</code></pre>
+<p>The image builder:</p>
+<ol>
+<li>Cross-compiles the binary for the guest target (<code>x86_64-unknown-linux-musl</code> for Alpine, <code>x86_64-unknown-linux-gnu</code> for Ubuntu)</li>
+<li>Downloads a base rootfs, TDX-compatible kernel, and OVMF firmware</li>
+<li>Packages everything into a gzipped CPIO initramfs</li>
+<li><strong>Pre-computes <code>MR_TD</code>, <code>RTMR[1]</code>, and <code>RTMR[2]</code></strong> — these are the measurement values you’ll use in validators</li>
+<li>Generates a self-extracting QEMU launch script</li>
+</ol>
+<p>The <code>BUILD_ID</code> ensures that host and guest binaries from the same build join the same mosaik network, while different builds get isolated networks.</p>
+<h2 id="step-2-declare-a-tdx-gated-stream"><a class="header" href="#step-2-declare-a-tdx-gated-stream">Step 2: Declare a TDX-Gated Stream</a></h2>
+<p>Use the <code>declare::stream!</code> macro with <code>require_ticket</code> to create a stream that validates consumers:</p>
+<pre><code class="language-rust ignore">use mosaik::tdx::Tdx;
+
+declare::stream!(
+    pub SecureConsumer = String,
+    "mosaik.examples.tee.tdx.SecureConsumer",
+    consumer require_ticket: Tdx::new()
+        .require_mrtd("91eb2b44d141d4ece09f0c75c2c53d247a\
+                        3c68edd7fafe8a3520c942a604a407de03\
+                        ae6dc5f87f27428b2538873118b7")
+);</code></pre>
+<p>This declares:</p>
+<ul>
+<li>A stream carrying <code>String</code> data</li>
+<li>The <code>consumer require_ticket</code> clause means the <strong>producer</strong> validates incoming consumers — only consumers whose TDX Quote contains the specified <code>MR_TD</code> measurement are allowed to subscribe</li>
+<li>The 96-character hex string is the <code>MR_TD</code> value pre-computed by the image builder during the build step</li>
+</ul>
+<p>The producer itself does not need to run inside TDX. It just validates that its consumers do.</p>
+<h2 id="step-3-declare-a-tdx-gated-collection"><a class="header" href="#step-3-declare-a-tdx-gated-collection">Step 3: Declare a TDX-Gated Collection</a></h2>
+<p>For the replicated map, use <code>declare::collection!</code> with local measurement matching:</p>
+<pre><code class="language-rust ignore">declare::collection!(
+    pub SecureObservers =
+        mosaik::collections::Map&lt;PeerId, String&gt;,
+    "mosaik.examples.tee.tdx.SecureObservers",
+    require_ticket: Tdx::new()
+        .require_own_mrtd().expect("TDX support")
+        .require_own_rtmr2().expect("TDX support")
+);</code></pre>
+<p>Key difference from the stream: instead of hardcoding measurement values, <code>require_own_mrtd()</code> and <code>require_own_rtmr2()</code> read the local machine’s measurements from TDX hardware at runtime. This means:</p>
+<ul>
+<li>No hex strings to manage</li>
+<li>Only peers running the <strong>exact same firmware and OS configuration</strong> can join the Raft group backing this collection</li>
+<li>Ideal for homogeneous deployments where all TDX guests boot the same image</li>
+</ul>
+<p>The <code>require_ticket</code> (without <code>consumer</code> or <code>producer</code> prefix) applies to all group members — every peer must present a valid TDX ticket to participate.</p>
+<h2 id="step-4-create-the-network"><a class="header" href="#step-4-create-the-network">Step 4: Create the Network</a></h2>
+<p>Each build generates a unique network ID so that binaries from the same build discover each other automatically:</p>
+<pre><code class="language-rust ignore">#[tokio::main]
+async fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let network_id = format!(
+        "mosaik.examples.tee.tdx.{}",
+        env!("BUILD_ID")
+    );
+    let network = Network::new(network_id.as_str()).await?;
+
+    println!("Local peer ID: {}", network.local().id());
+
+    if network.tdx().available() {
+        consumer_flow(network).await
+    } else {
+        producer_flow(network).await
+    }
+}</code></pre>
+<p><code>network.tdx().available()</code> checks for TDX hardware at runtime. On a regular host, it returns <code>false</code> and the binary runs as a producer. Inside a TDX guest VM, it returns <code>true</code> and the binary runs as a consumer. Same binary, different behavior.</p>
+<h2 id="step-5-the-consumer-flow-inside-tdx"><a class="header" href="#step-5-the-consumer-flow-inside-tdx">Step 5: The Consumer Flow (Inside TDX)</a></h2>
+<p>The consumer generates an attestation ticket and uses it to access the secure stream and collection:</p>
+<pre><code class="language-rust ignore">async fn consumer_flow(
+    network: Network,
+) -&gt; anyhow::Result&lt;()&gt; {
+    // 1. Generate a TDX attestation ticket
+    let ticket = network.tdx().ticket()?;
+
+    // 2. Inspect the ticket (optional)
+    let tdx_ticket: TdxTicket = ticket.try_into()?;
+    println!(
+        "Quote verified: {}",
+        tdx_ticket.quote().verify().is_ok()
+    );
+
+    // 3. Install the ticket into discovery so peers can
+    //    validate us
+    network.tdx().install_own_ticket()?;
+
+    // 4. Subscribe to the secure stream
+    let mut consumer = SecureConsumer::consumer(&amp;network);
+
+    // 5. Open the TDX-gated replicated map
+    let observers = SecureObservers::writer(&amp;network);
+
+    // 6. Wait for both to come online
+    consumer.when().online().await;
+    observers.when().online().await;
+
+    let my_peer_id = network.local().id();
+
+    // 7. Main loop: receive stream items and write them
+    //    to the shared map
+    loop {
+        tokio::select! {
+            () = observers.when().updated() =&gt; {
+                // Another peer wrote to the map
+                for (peer_id, value) in observers.iter() {
+                    println!("  {peer_id} observed: {value}");
+                }
+            }
+            Some(item) = consumer.next() =&gt; {
+                println!("Received: {item}");
+                let _ = observers
+                    .insert(my_peer_id, item)
+                    .await;
+            }
+        }
+    }
+}</code></pre>
+<p>The flow in detail:</p>
+<ol>
+<li><strong><code>network.tdx().ticket()</code></strong> — asks the TDX hardware to generate a Quote. The quote’s <code>report_data</code> is bound to this node’s peer ID and network ID, preventing replay attacks.</li>
+<li><strong><code>install_own_ticket()</code></strong> — attaches the ticket to this node’s discovery entry. It propagates to other peers via gossip automatically.</li>
+<li>When the consumer subscribes to the stream, the <strong>producer</strong> checks the consumer’s discovery entry for a TDX ticket and validates the <code>MR_TD</code> measurement. If it doesn’t match, the subscription is rejected.</li>
+<li>When the consumer opens the <code>SecureObservers</code> collection, the underlying Raft group validates all joining peers against the collection’s <code>require_ticket</code> criteria.</li>
+</ol>
+<h2 id="step-6-the-producer-flow-regular-host"><a class="header" href="#step-6-the-producer-flow-regular-host">Step 6: The Producer Flow (Regular Host)</a></h2>
+<p>The producer is straightforward — it doesn’t need TDX hardware:</p>
+<pre><code class="language-rust ignore">async fn producer_flow(
+    network: Network,
+) -&gt; anyhow::Result&lt;()&gt; {
+    let mut producer = SecureConsumer::producer(&amp;network);
+
+    loop {
+        // Wait for at least one validated consumer
+        producer.when().online().await;
+
+        let msg = format!(
+            "Hello at timestamp {}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_secs(),
+        );
+
+        if let Err(e) = producer.send(msg).await {
+            eprintln!("Failed to send: {e:?}");
+        }
+
+        tokio::time::sleep(
+            std::time::Duration::from_secs(2),
+        ).await;
+    }
+}</code></pre>
+<p>The producer publishes every 2 seconds. When a consumer connects, the <code>require_ticket</code> validator on the <code>SecureConsumer</code> stream automatically checks the consumer’s TDX ticket. Invalid consumers are rejected before they receive any data.</p>
+<h2 id="building"><a class="header" href="#building">Building</a></h2>
+<p>The build compiles both the host binary and the TDX guest image in one step:</p>
+<pre><code class="language-bash"># Alpine image (default — musl, smaller, faster boot)
+cargo build -p tdx-example --release
+
+# Ubuntu image (glibc, full package ecosystem)
+BUILD_TYPE=ubuntu cargo build -p tdx-example --release
+</code></pre>
+<p>After building, you’ll find artifacts in <code>target/release/tdx-artifacts/tdx-example/alpine/</code> (or <code>ubuntu/</code>):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>File</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tdx-example-initramfs.cpio.gz</code></td><td>Bootable initramfs with the binary</td></tr>
+<tr><td><code>tdx-example-vmlinuz</code></td><td>TDX-compatible kernel</td></tr>
+<tr><td><code>tdx-example-ovmf.fd</code></td><td>OVMF firmware</td></tr>
+<tr><td><code>tdx-example-run-qemu.sh</code></td><td>Self-extracting QEMU launch script</td></tr>
+<tr><td><code>tdx-example-mrtd.hex</code></td><td>Pre-computed MR_TD measurement</td></tr>
+<tr><td><code>tdx-example-rtmr1.hex</code></td><td>Pre-computed RTMR[1] measurement</td></tr>
+<tr><td><code>tdx-example-rtmr2.hex</code></td><td>Pre-computed RTMR[2] measurement</td></tr>
+</tbody>
+</table>
+</div>
+<p>The <code>.hex</code> files contain the measurement values you’d use in <code>require_mrtd(...)</code> declarations.</p>
+<h2 id="running"><a class="header" href="#running">Running</a></h2>
+<p>All instances from the same build share a network ID and discover each other automatically via DHT — no manual peer configuration needed.</p>
+<p><strong>Producer (any machine):</strong></p>
+<pre><code class="language-bash">./target/release/tdx-example
+</code></pre>
+<p>If TDX hardware is not present, the binary runs as a producer.</p>
+<p><strong>Consumer (on a TDX-capable host):</strong></p>
+<p>Upload the artifacts and launch the TDX guest:</p>
+<pre><code class="language-bash"># Copy artifacts to TDX host
+scp -r target/release/tdx-artifacts/tdx-example/alpine/ \
+    user@tdx-host:~/tdx-example
+
+# Launch the TDX guest VM
+sudo ./tdx-example/tdx-example-run-qemu.sh
+</code></pre>
+<p>You can launch multiple consumer instances — they’ll form a Raft group for the <code>SecureObservers</code> collection and share state exclusively among peers with matching measurements.</p>
+<h2 id="validation-patterns"><a class="header" href="#validation-patterns">Validation Patterns</a></h2>
+<p>The example demonstrates two complementary validation strategies:</p>
+<h3 id="hardcoded-measurements-stream"><a class="header" href="#hardcoded-measurements-stream">Hardcoded measurements (stream)</a></h3>
+<pre><code class="language-rust ignore">Tdx::new().require_mrtd("91eb2b44...")</code></pre>
+<p>Use when you know the exact image your peers should be running. The measurement value is determined at build time and embedded in the source code. This is the strictest form — only peers booting that exact firmware image pass validation.</p>
+<h3 id="local-measurement-matching-collection"><a class="header" href="#local-measurement-matching-collection">Local measurement matching (collection)</a></h3>
+<pre><code class="language-rust ignore">Tdx::new()
+    .require_own_mrtd().expect("TDX support")
+    .require_own_rtmr2().expect("TDX support")</code></pre>
+<p>Use in homogeneous deployments where all nodes run the same image but you don’t want to hardcode hex strings. Each node reads its own measurements from TDX hardware and requires peers to match. This is more convenient for deployment but requires all nodes to boot an identical image.</p>
+<h3 id="additional-options"><a class="header" href="#additional-options">Additional options</a></h3>
+<p>The <code>Tdx</code> validator supports further constraints:</p>
+<pre><code class="language-rust ignore">// Accept multiple image versions
+Tdx::new()
+    .require_mrtd("aaa...")       // baseline
+    .allow_variant(
+        MeasurementsCriteria::new()
+            .require_mrtd(Measurement::hex("bbb..."))
+    )
+
+// Reject stale attestations
+Tdx::new()
+    .require_mrtd("aaa...")
+    .max_age(Duration::from_secs(3600))
+
+// Require attestation generated after a specific time
+Tdx::new()
+    .require_mrtd("aaa...")
+    .not_before(Utc::now() - Duration::from_secs(86400))</code></pre>
+<h2 id="key-takeaways-3"><a class="header" href="#key-takeaways-3">Key Takeaways</a></h2>
+<ol>
+<li><strong>TEE attestation is just a ticket</strong> — mosaik’s <code>require_ticket</code> API treats TDX quotes the same as JWT tokens or custom credentials. No special protocol needed.</li>
+<li><strong>Validation is declarative</strong> — use <code>declare::stream!</code> or <code>declare::collection!</code> with <code>require_ticket</code> and the producer or group validates peers automatically.</li>
+<li><strong>Build-time measurement pre-computation</strong> — the image builder computes <code>MR_TD</code> and <code>RTMR</code> values during the build, giving you the exact hex strings to embed in validators.</li>
+<li><strong>Local measurement matching</strong> — <code>require_own_mrtd()</code> reads measurements from TDX hardware at runtime, avoiding hardcoded values in homogeneous deployments.</li>
+<li><strong>Same binary, two modes</strong> — <code>network.tdx().available()</code> lets a single binary adapt to its environment, running as producer on regular hosts and consumer inside TDX guests.</li>
+<li><strong>Automatic discovery</strong> — TDX tickets propagate via the same gossip and catalog sync as all other discovery data. No separate attestation service required.</li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="network-1"><a class="header" href="#network-1">Network</a></h1>

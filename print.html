@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e179421a.js";
+            window.path_to_searchindex_js = "searchindex-365199ac.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8ad75da6.js"></script>
+        <script src="toc-141a4f58.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -3968,6 +3968,419 @@ caller.when().available().with_tags("eu-west").await;  // with predicates
 caller.when().unavailable().await;                     // condition inverted</code></pre>
 <p>The caller’s own online condition is configurable at build time with
 <code>online_when(|c| c.minimum_of(2))</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="handlers"><a class="header" href="#handlers">Handlers</a></h1>
+<p>A <code>Handler</code> is the serving side of a function. It registers an
+implementation under a <code>FunctionId</code>, advertises that id in the node’s
+signed discovery entry, and answers calls that arrive over the
+<code>/mosaik/functions/1.0</code> ALPN.</p>
+<p>Handlers are created through a builder obtained from
+<code>network.functions().handler()</code>. The builder is terminated by one of two
+registration methods — <code>serve</code> for a closure, <code>serve_fn</code> for a
+<a href="#the-function-trait-1"><code>Function</code></a> implementation — both of which return
+<code>Result&lt;Handler&lt;Req, Res, E&gt;, BuilderError&gt;</code>.</p>
+<h2 id="registering-a-closure"><a class="header" href="#registering-a-closure">Registering a closure</a></h2>
+<p><code>serve</code> takes an async closure and infers the request, response and error
+types from it. Any <a href="#primitives-reference"><code>Datum</code></a> works for all
+three:</p>
+<pre><code class="language-rust ignore">let handler = network
+    .functions()
+    .handler()
+    .serve(|req: AddRequest, ctx| async move {
+        req.a.checked_add(req.b)
+            .map(|sum| AddResponse { sum })
+            .ok_or(MathError::Overflow)
+    })?;</code></pre>
+<p>Because a closure has no stable type name that both sides of the network
+could agree on, the base function id for a closure registration is derived
+from the <strong>request and response type names only</strong>. A caller built with
+<code>caller::&lt;AddRequest, AddResponse, MathError&gt;()</code> derives the same id and
+finds this handler without any shared constant.</p>
+<h2 id="the-function-trait-1"><a class="header" href="#the-function-trait-1">The <code>Function</code> trait</a></h2>
+<p>When the function carries state or needs startup work, implement
+<code>Function</code> instead. The closure API is an adapter over this trait, so the
+two are interchangeable on the wire:</p>
+<pre><code class="language-rust ignore">pub trait Function: Send + Sync + 'static {
+    type Req: Datum;
+    type Res: Datum;
+    type Err: Datum;
+
+    fn call(&amp;self, req: Self::Req, ctx: CallContext)
+        -&gt; impl Future&lt;Output = Result&lt;Self::Res, Self::Err&gt;&gt; + Send;
+
+    fn signature() -&gt; UniqueId { /* type-name derived */ }
+}</code></pre>
+<p>Initialization is deliberately <em>outside</em> the trait. Do any async warmup
+while constructing the instance, then register the ready value — a
+function that is not yet registered is simply not yet discoverable, so
+there is no window in which the network can route a call to a
+half-initialized handler:</p>
+<pre><code class="language-rust ignore">struct Pricer { book: OrderBook }
+
+impl Function for Pricer {
+    type Req = QuoteRequest;
+    type Res = QuoteResponse;
+    type Err = QuoteError;
+
+    async fn call(&amp;self, req: QuoteRequest, _ctx: CallContext)
+        -&gt; Result&lt;QuoteResponse, QuoteError&gt;
+    {
+        self.book.quote(&amp;req)
+    }
+}
+
+let pricer = Pricer::load(order_book_source).await?;   // warmup
+let handler = network.functions().handler().serve_fn(pricer)?;</code></pre>
+<p>The default <code>signature()</code> hashes the implementing type’s name together
+with the request and response type names. Callers reach the same id with
+<code>network.functions().caller_for::&lt;Pricer&gt;()</code>, so the <code>Function</code> type
+itself is the shared contract. Override <code>signature()</code> to pin a stable id
+independent of the Rust type name:</p>
+<pre><code class="language-rust ignore">fn signature() -&gt; UniqueId {
+    unique_id!("pricing.quote")
+}</code></pre>
+<h2 id="callcontext"><a class="header" href="#callcontext"><code>CallContext</code></a></h2>
+<p>Every invocation receives a <code>CallContext</code> alongside the request. It
+carries the <strong>authenticated</strong> identity of the remote caller as recorded in
+the local discovery catalog at the time of the call:</p>
+<pre><code class="language-rust ignore">.serve(|req: Req, ctx: CallContext| async move {
+    let caller: &amp;PeerEntry = ctx.caller();
+    tracing::info!(caller = %caller.id(), tags = ?caller.tags(), "serving call");
+    Ok::&lt;_, ()&gt;(handle(req))
+})</code></pre>
+<p>The peer id is authenticated by the QUIC handshake, not self-reported, and
+callers that are absent from the local catalog are rejected before the
+function ever runs. <code>into_caller()</code> consumes the context and returns the
+owned <code>PeerEntry</code>.</p>
+<h2 id="builder-reference"><a class="header" href="#builder-reference">Builder reference</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>with_function_id(id)</code></td><td>type-derived</td><td>Sets the base function id explicitly</td></tr>
+<tr><td><code>require(pred)</code></td><td>accept all</td><td>Caller eligibility predicate over <code>&amp;PeerInfo</code>; AND-composed if repeated</td></tr>
+<tr><td><code>require_ticket(v)</code></td><td>none</td><td>Sugar for <code>require_caller_ticket</code></td></tr>
+<tr><td><code>require_caller_ticket(v)</code></td><td>none</td><td>Tickets callers must present; <strong>enforced</strong> here</td></tr>
+<tr><td><code>require_handler_ticket(v)</code></td><td>none</td><td>Tickets handlers must present; declared only, folds into the wire id</td></tr>
+<tr><td><code>with_max_concurrent(n)</code></td><td>unlimited</td><td>Bounds concurrently executing calls</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>require</code> receives a <code>PeerInfo</code>, which derefs to the caller’s <code>PeerEntry</code>
+and adds locally observed metrics:</p>
+<pre><code class="language-rust ignore">.require(|peer| peer.tags().contains(&amp;"trusted".into()))
+.require(|peer| peer.rtt_below(Duration::from_millis(50)))</code></pre>
+<p>See <a href="#authorization">Authorization</a> for how the two ticket
+directions differ and why both are declared on both sides.</p>
+<h2 id="one-handler-per-function-id"><a class="header" href="#one-handler-per-function-id">One handler per function id</a></h2>
+<p>A node can serve a given effective wire id exactly once. Registering a
+second handler for the same id fails with <code>BuilderError::AlreadyExists</code>:</p>
+<pre><code class="language-rust ignore">let first = network.functions().handler().serve(handle_a)?;
+let second = network.functions().handler().serve(handle_a);
+assert!(matches!(second, Err(BuilderError::AlreadyExists)));</code></pre>
+<p>Unlike a stream producer, the existing registration is <em>not</em> returned — it
+is bound to the closure or <code>Function</code> instance it was created with, so
+handing it back would silently give you someone else’s implementation.</p>
+<h2 id="lifetime-and-shutdown"><a class="header" href="#lifetime-and-shutdown">Lifetime and shutdown</a></h2>
+<p>The <code>Handler</code> exclusively owns its registration. Dropping it:</p>
+<ol>
+<li>cancels in-flight dispatches for that function,</li>
+<li>removes the function id from the local discovery entry, and</li>
+<li>deregisters it so subsequent calls are rejected with <code>FunctionNotFound</code>.</li>
+</ol>
+<p>A call whose dispatch is cancelled mid-flight by a drop is reported to the
+caller as <code>FunctionNotFound</code> — from the caller’s point of view the
+function is no longer served, which is exactly true — and the caller fails
+over to another handler if one is eligible.</p>
+<p>Keep the handle alive for as long as you want to serve. Binding it to <code>_</code>
+drops it immediately; bind to a named variable (or <code>_handler</code>) instead.</p>
+<h2 id="concurrency"><a class="header" href="#concurrency">Concurrency</a></h2>
+<p><code>with_max_concurrent(n)</code> bounds how many calls may execute at once. Calls
+arriving while the bound is saturated are rejected with a <code>NoCapacity</code>
+close reason rather than queued, which lets the caller fail over to a
+handler that has capacity instead of waiting behind a full queue:</p>
+<pre><code class="language-rust ignore">let handler = network.functions().handler()
+    .with_max_concurrent(32)
+    .serve(|req: Req, _| async move { Ok::&lt;_, ()&gt;(handle(req).await) })?;</code></pre>
+<p>The default is unlimited. Choosing a bound turns overload into an explicit,
+observable rejection and is what makes horizontal scaling across handler
+nodes work.</p>
+<h2 id="rejections"><a class="header" href="#rejections">Rejections</a></h2>
+<p>Before the function runs, the acceptor screens every call. Each screen has
+a distinct close reason so the caller can distinguish “try someone else”
+from “this call is malformed”:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Close reason</th><th>Code</th><th>Cause</th></tr>
+</thead>
+<tbody>
+<tr><td><code>UnknownPeer</code></td><td><code>401</code></td><td>Caller is not in this node’s discovery catalog</td></tr>
+<tr><td><code>DifferentNetwork</code></td><td><code>101</code></td><td>Caller’s <code>NetworkId</code> does not match</td></tr>
+<tr><td><code>FunctionNotFound</code></td><td><code>11_404</code></td><td>No handler registered for the requested id</td></tr>
+<tr><td><code>NotAllowed</code></td><td><code>11_403</code></td><td><code>require</code> predicate or caller ticket validation failed</td></tr>
+<tr><td><code>NoCapacity</code></td><td><code>11_509</code></td><td><code>max_concurrent</code> is saturated</td></tr>
+<tr><td><code>ProtocolViolation</code></td><td><code>400</code></td><td>Request payload did not decode into <code>Req</code></td></tr>
+<tr><td><code>HandlerFailure</code></td><td><code>11_500</code></td><td>Reply could not be encoded — a handler-side fault</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>UnknownPeer</code> is self-healing rather than terminal: the caller responds by
+forcing a catalog exchange with this handler and retrying once, so a
+handler that has not yet learned a new caller does not permanently reject
+it. See <a href="#failover-and-attempt-classification">Callers</a>.</p>
+<h2 id="application-errors-are-not-failures"><a class="header" href="#application-errors-are-not-failures">Application errors are not failures</a></h2>
+<p>A function returning <code>Err(Self::Err)</code> is a <strong>successful protocol
+exchange</strong>. The typed error travels back to the caller as
+<code>CallError::Application(E)</code> and never triggers failover — the function
+ran, and its answer stands. Retrying it on another handler would at best
+waste a round trip and at worst duplicate a side effect.</p>
+<p>Reserve close reasons for conditions where a <em>different</em> handler might
+legitimately produce a different outcome, and the typed error type for
+everything the function itself decides.</p>
+<h2 id="statistics-1"><a class="header" href="#statistics-1">Statistics</a></h2>
+<p>Each handler tracks its own counters:</p>
+<pre><code class="language-rust ignore">let stats = handler.stats();
+stats.served();    // calls that completed with a reply, app errors included
+stats.failed();    // handler-side faults: bad request, encode failure, shutdown
+stats.inflight();  // calls currently executing</code></pre>
+<p>These are process-local. For fleet-wide observability the subsystem also
+emits <code>mosaik.functions.*</code> metrics — see
+<a href="#metrics">Metrics &amp; Observability</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="callers"><a class="header" href="#callers">Callers</a></h1>
+<p>A <code>Caller</code> is the invoking side of a function. It never names a peer.
+Instead it watches the discovery catalog for nodes advertising the
+function id, keeps a ranked set of eligible handlers, and — on each call —
+opens a dedicated connection to the best candidate.</p>
+<pre><code class="language-rust ignore">let caller = network
+    .functions()
+    .caller::&lt;AddRequest, AddResponse, MathError&gt;()
+    .with_call_timeout(Duration::from_secs(5))
+    .build();
+
+let res = caller.call(AddRequest { a: 1, b: 2 }).await?;</code></pre>
+<p><code>build()</code> returns immediately and starts a background worker; it does not
+wait for a handler to exist. Calls take <code>&amp;self</code>, so a single handle serves
+any number of concurrent calls and is cheap to share behind an <code>Arc</code> or
+store in a struct. Dropping the caller stops the worker and its catalog
+watch.</p>
+<h2 id="builder-reference-1"><a class="header" href="#builder-reference-1">Builder reference</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>with_function_id(id)</code></td><td>type-derived</td><td>Sets the base function id explicitly</td></tr>
+<tr><td><code>require(pred)</code></td><td>accept all</td><td>Handler eligibility predicate over <code>&amp;PeerInfo</code>; AND-composed if repeated</td></tr>
+<tr><td><code>require_ticket(v)</code></td><td>none</td><td>Sugar for <code>require_handler_ticket</code></td></tr>
+<tr><td><code>require_handler_ticket(v)</code></td><td>none</td><td>Tickets handlers must present; <strong>enforced</strong> here</td></tr>
+<tr><td><code>require_caller_ticket(v)</code></td><td>none</td><td>Tickets callers must present; declared only, folds into the wire id</td></tr>
+<tr><td><code>with_call_timeout(d)</code></td><td><code>functions::Config</code> (30 s)</td><td>Default end-to-end timeout for calls through this caller</td></tr>
+<tr><td><code>online_when(f)</code></td><td><code>|c| c.minimum_of(1)</code></td><td>Conditions under which the caller reports itself online</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="deriving-the-function-id"><a class="header" href="#deriving-the-function-id">Deriving the function id</a></h2>
+<p>Three constructors cover the ways a caller can arrive at the right id:</p>
+<pre><code class="language-rust ignore">// 1. From the request/response types — matches a closure registration
+let caller = network.functions().caller::&lt;Req, Res, E&gt;().build();
+
+// 2. From a shared Function type — matches a serve_fn registration
+let caller = network.functions().caller_for::&lt;Pricer&gt;().build();
+
+// 3. From a shared FunctionDef constant
+const QUOTE: FunctionDef&lt;QuoteRequest, QuoteResponse, QuoteError&gt; =
+    FunctionDef::with_function_id(unique_id!("pricing.quote"));
+let caller = network.functions().caller_of(QUOTE).build();</code></pre>
+<p>Whichever you pick, the <em>base</em> id is only half the story: every configured
+ticket validator’s signature is folded on top to produce the effective
+wire id. Two callers with the same base id but different authorization
+rules look for different functions. See
+<a href="#function-identity">Function identity</a>.</p>
+<h2 id="candidate-selection"><a class="header" href="#candidate-selection">Candidate selection</a></h2>
+<p>The caller’s worker recomputes its eligible set whenever the discovery
+catalog changes. A peer becomes a candidate when it:</p>
+<ol>
+<li>advertises the effective function id in its signed catalog entry,</li>
+<li>has a measured round-trip time available,</li>
+<li>satisfies every <code>require</code> predicate, and</li>
+<li>passes every configured handler ticket validator.</li>
+</ol>
+<p>Candidates are ranked by smoothed RTT, lowest first, and each call walks
+that ranking in order.</p>
+<p>Ticket validation happens twice: once when building the candidate set, and
+again against the freshest catalog entry immediately before each attempt.
+That second check is what makes expiry work without any timers — an
+authorization that lapses between calls simply fails the next admission.</p>
+<h2 id="call-lifecycle"><a class="header" href="#call-lifecycle">Call lifecycle</a></h2>
+<p><code>call</code> bounds the <strong>entire</strong> operation with the caller’s timeout;
+<code>call_with_timeout</code> overrides it per call. The budget covers waiting for a
+handler to appear, connecting, invoking, receiving the reply, and every
+failover attempt along the way — not just the remote execution:</p>
+<pre><code class="language-rust ignore">caller.call(req).await;                                  // caller default
+caller.call_with_timeout(req, Duration::from_secs(2)).await;   // per call</code></pre>
+<p>If no eligible handler is known when the call is made, the call <strong>waits</strong>
+rather than failing fast. This is what lets callers and handlers start in
+any order: a caller created before its handler simply blocks until the
+handler’s advertisement propagates, up to the timeout.</p>
+<p>If every candidate in a snapshot fails, the caller waits for the candidate
+set to change and tries the new ranking, still bounded by the same
+timeout.</p>
+<h2 id="failover-and-attempt-classification"><a class="header" href="#failover-and-attempt-classification">Failover and attempt classification</a></h2>
+<p>Each attempt ends in one of three ways, and the distinction determines
+whether the call moves on:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Outcome</th><th>Meaning</th><th>Fails over?</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Completed</strong></td><td>A reply arrived — either <code>Res</code> or the typed application <code>E</code></td><td>No</td></tr>
+<tr><td><strong>Rejected</strong></td><td>The handler closed with a verdict (<code>NoCapacity</code>, …)</td><td>Yes</td></tr>
+<tr><td><strong>Transport failure</strong></td><td>The connection failed with no handler verdict</td><td>Yes</td></tr>
+</tbody>
+</table>
+</div>
+<p>Application errors deliberately do not fail over. The function executed
+and returned an answer; asking a second handler would risk duplicating a
+side effect and would not produce a more correct result.</p>
+<p>One rejection is special. If a handler closes with <code>UnknownPeer</code> it has
+simply not seen this caller’s catalog entry yet. The caller forces a
+catalog exchange with that handler and retries the same candidate once —
+the same self-healing pattern streams and groups use for a cold catalog.</p>
+<h2 id="error-taxonomy"><a class="header" href="#error-taxonomy">Error taxonomy</a></h2>
+<p><code>CallError&lt;E&gt;</code> distinguishes what went wrong so callers can react
+meaningfully rather than blanket-retrying:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variant</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Application(E)</code></td><td>The function ran and returned its typed error</td></tr>
+<tr><td><code>Unavailable</code></td><td>No eligible handler appeared within the timeout</td></tr>
+<tr><td><code>Timeout</code></td><td>Handlers existed, but no attempt completed in time</td></tr>
+<tr><td><code>Rejected(c)</code></td><td>Every handler rejected; carries the last close reason</td></tr>
+<tr><td><code>Transport(e)</code></td><td>Every attempt failed at the transport level; carries the last failure</td></tr>
+<tr><td><code>Encode(e)</code></td><td>The request could not be encoded</td></tr>
+<tr><td><code>Decode(e)</code></td><td>The reply could not be decoded</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>Unavailable</code> and <code>Timeout</code> are worth separating in your own handling:
+the first means the network has nobody to serve this function, the second
+means it does and they were too slow. The first is a deployment problem,
+the second a capacity or latency one.</p>
+<pre><code class="language-rust ignore">match caller.call(req).await {
+    Ok(res) =&gt; { /* … */ }
+    Err(CallError::Application(e)) =&gt; { /* the function said no */ }
+    Err(CallError::Unavailable)    =&gt; { /* nobody serves this function */ }
+    Err(CallError::Timeout)        =&gt; { /* handlers exist but are slow */ }
+    Err(other)                     =&gt; { /* Rejected / Transport / codec */ }
+}</code></pre>
+<p>See <a href="#error-handling-9">Error Handling</a> for the full close-reason
+table.</p>
+<h2 id="readiness"><a class="header" href="#readiness">Readiness</a></h2>
+<p>Rather than calling blind and handling <code>Unavailable</code>, wait for the caller
+to come online:</p>
+<pre><code class="language-rust ignore">caller.when().online().await;                   // default: ≥1 eligible handler
+caller.when().available().minimum_of(3).await;  // ad-hoc threshold</code></pre>
+<p>Readiness here means <em>discovered and eligible</em>, not <em>connected</em> —
+functions open a connection per call, so there is no persistent
+subscription to be online with. See
+<a href="#status--conditions-1">Status &amp; Conditions</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="status--conditions-1"><a class="header" href="#status--conditions-1">Status &amp; Conditions</a></h1>
+<p>Callers expose the same reactive <code>when()</code> idiom as the rest of mosaik, so
+you can write code that waits for the network to be ready instead of
+polling or sleeping.</p>
+<pre><code class="language-rust ignore">let caller = network.functions().caller::&lt;Req, Res, E&gt;().build();
+let when = caller.when();</code></pre>
+<h2 id="what-available-means-here"><a class="header" href="#what-available-means-here">What “available” means here</a></h2>
+<p>Streams and groups track <em>live connections</em>: a consumer is online because
+a subscription is open. Functions do not work that way — a call opens a
+dedicated connection and closes it when the reply arrives, so between
+calls there is nothing connected to observe.</p>
+<p>A function caller’s conditions are therefore about <strong>discovered
+eligibility</strong>, not connectivity. A handler is available when it advertises
+the function id, has an RTT measurement, and passes the caller’s <code>require</code>
+predicates and ticket validators. That is a claim about who <em>could</em> serve
+the next call, which is the useful question for an RPC client.</p>
+<p>The practical consequence: <code>when().available()</code> resolving means a call is
+very likely to succeed, not that one is guaranteed to. The handler could
+still drop its registration in the window between the check and the call —
+in which case the caller fails over.</p>
+<h2 id="online-and-offline"><a class="header" href="#online-and-offline">Online and offline</a></h2>
+<pre><code class="language-rust ignore">when.online().await;      // resolves when the caller's online_when is met
+when.offline().await;     // resolves when it is no longer met
+when.is_online();         // immediate, non-blocking check</code></pre>
+<p>“Online” is whatever the caller’s <code>online_when</code> says. The default is at
+least one eligible handler; configure it at build time:</p>
+<pre><code class="language-rust ignore">let caller = network.functions().caller::&lt;Req, Res, E&gt;()
+    .online_when(|c| c.minimum_of(2).with_tags("eu-west"))
+    .build();</code></pre>
+<h2 id="handlerconditions"><a class="header" href="#handlerconditions"><code>HandlerConditions</code></a></h2>
+<p><code>when().available()</code> returns a <code>HandlerConditions</code> — a composable future
+that resolves when the eligible-handler set matches your criteria.
+<code>when().unavailable()</code> is the same thing inverted.</p>
+<h3 id="minimum-count"><a class="header" href="#minimum-count">Minimum count</a></h3>
+<pre><code class="language-rust ignore">when.available().minimum_of(3).await;</code></pre>
+<h3 id="tag-filtering-1"><a class="header" href="#tag-filtering-1">Tag filtering</a></h3>
+<pre><code class="language-rust ignore">when.available().with_tags("pricer").await;
+when.available().with_tags(["pricer", "eu-west"]).await;   // all must match</code></pre>
+<h3 id="custom-predicates-1"><a class="header" href="#custom-predicates-1">Custom predicates</a></h3>
+<pre><code class="language-rust ignore">when.available()
+    .with_predicate(|peer: &amp;PeerEntry| peer.tags().len() &gt;= 2)
+    .await;</code></pre>
+<h3 id="composition"><a class="header" href="#composition">Composition</a></h3>
+<p>Conditions chain, and every clause must hold for the same peers:</p>
+<pre><code class="language-rust ignore">// at least two eu-west pricers
+when.available()
+    .minimum_of(2)
+    .with_tags("pricer")
+    .with_predicate(|p| p.tags().contains(&amp;"eu-west".into()))
+    .await;</code></pre>
+<h3 id="inversion"><a class="header" href="#inversion">Inversion</a></h3>
+<p><code>unmet()</code> flips a condition, which is how you wait for capacity to
+disappear:</p>
+<pre><code class="language-rust ignore">// wait until fewer than three handlers remain
+when.available().minimum_of(3).unmet().await;</code></pre>
+<h3 id="immediate-checks"><a class="header" href="#immediate-checks">Immediate checks</a></h3>
+<pre><code class="language-rust ignore">let condition = when.available().minimum_of(3);
+if condition.is_condition_met() {
+    // three or more eligible handlers right now
+}
+
+// HandlerConditions also compares against bool
+if when.available().minimum_of(3) == true { /* … */ }</code></pre>
+<h3 id="re-triggering-1"><a class="header" href="#re-triggering-1">Re-triggering</a></h3>
+<p><code>HandlerConditions</code> implements <code>Future</code> and can be polled again after it
+resolves. It resets and fires on each fresh transition from <strong>not met →
+met</strong>, which makes it usable as a loop edge-trigger rather than a
+one-shot:</p>
+<pre><code class="language-rust ignore">let mut condition = when.available().minimum_of(2);
+loop {
+    (&amp;mut condition).await;
+    tracing::info!("back up to two or more handlers");
+}</code></pre>
+<p>Note that this is edge-triggered, not level-triggered: it fires on the
+transition, so a condition that is already met when you next await it will
+not fire again until it has first become unmet.</p>
+<h2 id="waiting-at-construction"><a class="header" href="#waiting-at-construction">Waiting at construction</a></h2>
+<p>The <a href="#compile-time-declarations"><code>function!</code></a> macro
+generates an <code>online_caller</code> constructor that folds construction and the
+readiness wait into one expression:</p>
+<pre><code class="language-rust ignore">// these are equivalent
+let caller = Quote::caller(&amp;network);
+caller.when().online().await;
+
+let caller = Quote::online_caller(&amp;network).await;</code></pre>
+<p>This mirrors <code>online_producer</code> / <code>online_consumer</code> in
+<a href="#status--conditions">Streams</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="groups-1"><a class="header" href="#groups-1">Groups</a></h1>
 <p>Consensus Groups are clusters of trusted nodes on the same mosaik network that coordinate with each other for load balancing and failover. Members of a group share a secret key, maintain a consistent replicated state through a modified Raft consensus protocol, and stay connected via an all-to-all mesh of persistent <strong>bonds</strong>.</p>

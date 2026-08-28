@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-49c8e102.js";
+            window.path_to_searchindex_js = "../searchindex-e179421a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bfbcddc8.js"></script>
+        <script src="../toc-8ad75da6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -209,6 +209,7 @@ let network = Network::builder()
 <tr><td><code>secret_key</code></td><td><code>SecretKey</code></td><td>random</td><td>Ed25519 key for peer identity</td></tr>
 <tr><td><code>discovery</code></td><td><code>DiscoveryConfigBuilder</code></td><td>see below</td><td>Nested discovery config</td></tr>
 <tr><td><code>streams</code></td><td><code>StreamsConfigBuilder</code></td><td>see below</td><td>Nested streams config</td></tr>
+<tr><td><code>functions</code></td><td><code>FunctionsConfigBuilder</code></td><td>see below</td><td>Nested functions config</td></tr>
 <tr><td><code>groups</code></td><td><code>GroupsConfigBuilder</code></td><td>see below</td><td>Nested groups config</td></tr>
 <tr><td><code>prometheus_addr</code></td><td><code>Option&lt;SocketAddr&gt;</code></td><td><code>None</code></td><td>Prometheus HTTP exporter address (<code>prometheus</code> feature)</td></tr>
 </tbody>
@@ -271,6 +272,21 @@ Network::builder()
         max_elapsed_time: Some(Duration::from_secs(120)),
         ..Default::default()
     }))</code></pre>
+<hr>
+<h2 id="functionsconfig"><a class="header" href="#functionsconfig"><code>functions::Config</code></a></h2>
+<p>Controls function call defaults.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>call_timeout</code></td><td><code>Duration</code></td><td>30 s</td><td>Default end-to-end call timeout (discovery wait + connect + invoke + failover)</td></tr>
+</tbody>
+</table>
+</div>
+<p>The timeout can be overridden per caller with <code>with_call_timeout</code> and per
+call with <code>call_with_timeout</code>.</p>
 <hr>
 <h2 id="groupsconfig"><a class="header" href="#groupsconfig"><code>groups::Config</code></a></h2>
 <p>Controls bond establishment.</p>

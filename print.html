@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-49c8e102.js";
+            window.path_to_searchindex_js = "searchindex-e179421a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-bfbcddc8.js"></script>
+        <script src="toc-8ad75da6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -186,7 +186,7 @@
   <a href="https://github.com/flashbots/mosaik"><img alt="Status" src="https://img.shields.io/badge/status-experimental-orange.svg"></a>
 </p>
 
-<p><strong><a href="https://mosaik.rs">Mosaik</a></strong> is a Rust runtime for building <strong>self-organizing, leaderless distributed systems</strong>. It is designed for trusted, permissioned networks — environments where all participating nodes are assumed honest, such as L2 blockchain infrastructure operated by a single organization.</p>
+<p><strong><a href="https://github.com/flashbots/mosaik">Mosaik</a></strong> is a Rust runtime for building <strong>self-organizing, leaderless distributed systems</strong>. It is designed for trusted, permissioned networks — environments where all participating nodes are assumed honest, such as L2 blockchain infrastructure operated by a single organization.</p>
 <h2 id="what-mosaik-does"><a class="header" href="#what-mosaik-does">What Mosaik Does</a></h2>
 <p>When you deploy mosaik-based binaries on arbitrary machines, the network <strong>self-organizes</strong>: nodes discover each other via gossip, infer the data-flow topology, elect leaders where needed, and converge to a stable operational state. Each node needs only a <strong>network ID</strong> to participate — a string that identifies which logical network to join. Mosaik automatically discovers peers via <a href="https://en.wikipedia.org/wiki/Mainline_DHT">Mainline DHT</a>, requiring no manual configuration. A bootstrap peer can optionally be provided to speed up initial discovery or when DHT discovery is disabled (the <a href="https://github.com/flashbots/mosaik/blob/main/examples/bootstrap.rs">bootstrap example</a> can be used as a universal bootstrap node in production).</p>
 <p>A secret key is automatically generated on each run, giving the node a unique identity. Specifying a fixed secret key is only recommended for bootstrap nodes that need a stable, well-known peer ID across restarts.</p>
@@ -3787,9 +3787,191 @@ println!("{}", stats);
     .build()?;</code></pre>
 <p>The closure receives a <code>ChannelConditions</code> and returns it with your conditions applied. This is evaluated every time the subscription set changes.</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="functions"><a class="header" href="#functions">Functions</a></h1>
+<p>Functions are mosaik’s leaderless RPC primitive. A <strong>caller</strong> invokes a
+function identified by a <code>FunctionId</code> without knowing which peer will serve
+the call — the network discovers peers that registered a <strong>handler</strong> for
+that function, connects to the best candidate, invokes the function, and
+returns the typed result.</p>
+<h2 id="overview-4"><a class="header" href="#overview-4">Overview</a></h2>
+<pre><code>Caller Node                          Handler Nodes
+┌─────────────────┐                 ┌─────────────────┐
+│  Caller&lt;Req,    │────QUIC────────▶│  Handler&lt;Req,   │
+│    Res, E&gt;      │  /mosaik/       │    Res, E&gt;      │
+│                 │  functions/1.0  │  (lowest RTT)   │
+│  ranks by RTT,  │                 └─────────────────┘
+│  fails over ────┼───────────────▶ ┌─────────────────┐
+│  on failure     │                 │  Handler&lt;Req,   │
+└─────────────────┘                 │    Res, E&gt;      │
+                                    └─────────────────┘
+</code></pre>
+<p>Handlers advertise the functions they serve in their signed discovery
+entry. Callers watch the catalog for eligible handlers, rank them by
+measured round-trip time, and open one dedicated connection per call. On
+transport failures and handler-side rejections the call automatically
+fails over to the next candidate; if no handler is known yet, the call
+waits — within its timeout — for one to appear, so callers and handlers
+can start in any order.</p>
+<h2 id="serving-a-function"><a class="header" href="#serving-a-function">Serving a function</a></h2>
+<p>Register a function with a plain async closure. The request, response and
+error types are inferred — any <a href="#primitives-reference"><code>Datum</code></a> works:</p>
+<pre><code class="language-rust ignore">let handler = network
+    .functions()
+    .handler()
+    .serve(|req: AddRequest, ctx| async move {
+        // ctx: CallContext — the authenticated caller's PeerEntry
+        req.a.checked_add(req.b)
+            .map(|sum| AddResponse { sum })
+            .ok_or(MathError::Overflow)
+    })?;</code></pre>
+<p>The returned <code>Handler</code> exclusively owns the registration: dropping it
+deregisters the function, removes the discovery advertisement, and aborts
+in-flight calls.</p>
+<h3 id="the-function-trait"><a class="header" href="#the-function-trait">The <code>Function</code> trait</a></h3>
+<p>For functions with state or startup logic, implement <code>Function</code> instead of
+passing a closure — the closure API is just an adapter over this trait.
+Initialization is deliberately outside the trait: do any async warmup while
+constructing the instance, then register it. The function is only
+advertised on the network once registered:</p>
+<pre><code class="language-rust ignore">struct Pricer { book: OrderBook }
+
+impl Function for Pricer {
+    type Req = QuoteRequest;
+    type Res = QuoteResponse;
+    type Err = QuoteError;
+
+    async fn call(&amp;self, req: QuoteRequest, ctx: CallContext)
+        -&gt; Result&lt;QuoteResponse, QuoteError&gt;
+    {
+        self.book.quote(&amp;req)
+    }
+
+    // Optional override; defaults to a hash of the implementing type's
+    // name and the request/response type names.
+    fn signature() -&gt; UniqueId {
+        unique_id!("pricing.quote")
+    }
+}
+
+// Warmup happens in ordinary construction, before registration:
+let pricer = Pricer::load(order_book_source).await?;
+let handler = network.functions().handler().serve_fn(pricer)?;</code></pre>
+<h2 id="calling-a-function"><a class="header" href="#calling-a-function">Calling a function</a></h2>
+<pre><code class="language-rust ignore">let caller = network
+    .functions()
+    .caller::&lt;AddRequest, AddResponse, MathError&gt;()
+    .with_call_timeout(Duration::from_secs(5))
+    .build();
+
+// Optional: reactive readiness, same when() idiom as streams
+caller.when().available().minimum_of(1).await;
+
+match caller.call(AddRequest { a: 1, b: 2 }).await {
+    Ok(res) =&gt; println!("sum = {}", res.sum),
+    Err(CallError::Application(MathError::Overflow)) =&gt; {
+        // typed app error — the function ran; never triggers failover
+    }
+    Err(CallError::Unavailable) =&gt; {
+        // no eligible handler appeared within the timeout
+    }
+    Err(CallError::Timeout) =&gt; {
+        // handlers existed but none completed in time
+    }
+    Err(other) =&gt; { /* Rejected / Transport / Encode / Decode */ }
+}</code></pre>
+<p>For a <code>Function</code> implementation, <code>caller_for</code> derives the same identity
+from the shared type:</p>
+<pre><code class="language-rust ignore">let caller = network.functions().caller_for::&lt;Pricer&gt;().build();</code></pre>
+<p>Calls take <code>&amp;self</code>, so one caller handle serves any number of concurrent
+calls. <code>call_with_timeout</code> overrides the timeout per call.</p>
+<h2 id="function-identity"><a class="header" href="#function-identity">Function identity</a></h2>
+<p>The <strong>base id</strong> of a function defaults to a hash of its request and
+response type names (closure registrations), the implementing type’s
+<code>signature()</code> (trait registrations), or the marker type name (<code>function!</code>
+declarations). It can always be set explicitly with <code>with_function_id</code>.</p>
+<p><strong>Authorization is part of the identity</strong>: the <em>effective wire id</em> is the
+base id with every configured ticket validator’s <code>signature()</code> folded in —
+caller-authorization validators first, then handler-authorization. Two
+functions with the same base id but different authorization rules are
+therefore <em>different functions on the network</em>, and mismatched
+configuration is a hard partition (the caller never discovers the handler)
+rather than a runtime rejection.</p>
+<h2 id="authorization"><a class="header" href="#authorization">Authorization</a></h2>
+<p>Both sides can restrict their counterparty with <code>require</code> predicates and
+ticket validators, checked against the counterparty’s signed catalog
+entry:</p>
+<pre><code class="language-rust ignore">// Handler: only ticketed callers may invoke, only tagged peers considered
+let handler = network.functions().handler()
+    .require(|peer| peer.tags().contains(&amp;"trusted".into()))
+    .require_ticket(jwt_validator)          // callers present tickets
+    .serve(|req: Req, _| async move { Ok::&lt;_, ()&gt;(handle(req)) })?;
+
+// Caller: only ticketed handlers are eligible candidates
+let caller = network.functions().caller::&lt;Req, Res, ()&gt;()
+    .require(|peer| peer.rtt_below(Duration::from_millis(50)))
+    .require_ticket(server_validator)       // handlers present tickets
+    .build();</code></pre>
+<p><code>require_ticket</code> is counterparty sugar: on the handler builder it means
+<code>require_caller_ticket</code>, on the caller builder <code>require_handler_ticket</code>.
+Because both directions fold into the wire id, each side must <em>declare</em>
+the full contract even though it only <em>enforces</em> one direction — the
+<code>function!</code> macro takes care of this automatically.</p>
+<p>Tickets are validated per call: handlers check the caller’s entry at
+admission, callers re-check the handler’s entry before every attempt, so
+expired tickets never require connection teardown timers.</p>
+<h2 id="capacity-and-failover"><a class="header" href="#capacity-and-failover">Capacity and failover</a></h2>
+<p>Handlers can bound concurrent execution with <code>with_max_concurrent(n)</code>;
+calls beyond the limit are rejected with a <code>NoCapacity</code> close reason and
+the caller fails over to another handler if one is eligible.</p>
+<p>A call attempt is classified as either:</p>
+<ul>
+<li><strong>Completed</strong> — a reply arrived. <code>CallReply::Ok</code> decodes to <code>Res</code>,
+<code>CallReply::Err</code> decodes to the typed application error <code>E</code>. Both end
+the call; application errors never fail over.</li>
+<li><strong>Rejected</strong> — the handler closed with a verdict (<code>FunctionNotFound</code>,
+<code>NotAllowed</code>, <code>NoCapacity</code>, …). The caller tries the next candidate.</li>
+<li><strong>Transport failure</strong> — no verdict (connection failed mid-flight). The
+caller tries the next candidate.</li>
+</ul>
+<p>If a handler rejects with <code>UnknownPeer</code> (it has not seen the caller’s
+catalog entry yet), the caller performs a catalog sync with that handler
+and retries once — the same self-healing pattern streams and groups use.</p>
+<h2 id="compile-time-declarations"><a class="header" href="#compile-time-declarations">Compile-time declarations</a></h2>
+<p>The <code>function!</code> macro declares a function with a baked-in id and
+configuration, generating <code>FunctionHandler</code>/<code>FunctionCaller</code>
+implementations on a marker type:</p>
+<pre><code class="language-rust ignore">function!(pub Quote = QuoteRequest -&gt; Result&lt;QuoteResponse, QuoteError&gt;,
+    "pricing.quote",
+    caller require_ticket: my_validator(),   // handlers validate callers
+    handler require: |p| p.tags().contains(&amp;"pricer".into()),
+    timeout: Duration::from_secs(5),         // caller-side
+    max_concurrent: 32,                      // handler-side
+);
+
+// Hosting
+let handler: HandlerOf&lt;Quote&gt; = Quote::handler(&amp;network, |req, _ctx| async move {
+    Ok(QuoteResponse::for_request(&amp;req))
+})?;
+
+// Calling — or Quote::online_caller(&amp;network).await to wait for a handler
+let caller: CallerOf&lt;Quote&gt; = Quote::caller(&amp;network);
+let quote = caller.call(request).await?;</code></pre>
+<p><code>= Req -&gt; Result&lt;Res, E&gt;</code> declares a typed application error (plain
+<code>= Req -&gt; Res</code> defaults the error type to <code>()</code>). Role-restricted forms
+(<code>function!(pub caller Name = ...)</code> / <code>pub handler ...</code>) expose only one
+side. See the [<code>function!</code>] macro docs for the full key reference.</p>
+<h2 id="reactive-conditions"><a class="header" href="#reactive-conditions">Reactive conditions</a></h2>
+<p>Callers expose the same <code>when()</code> idiom as the rest of mosaik:</p>
+<pre><code class="language-rust ignore">caller.when().online().await;                          // default: ≥1 handler
+caller.when().available().minimum_of(2).await;         // N eligible handlers
+caller.when().available().with_tags("eu-west").await;  // with predicates
+caller.when().unavailable().await;                     // condition inverted</code></pre>
+<p>The caller’s own online condition is configurable at build time with
+<code>online_when(|c| c.minimum_of(2))</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="groups-1"><a class="header" href="#groups-1">Groups</a></h1>
 <p>Consensus Groups are clusters of trusted nodes on the same mosaik network that coordinate with each other for load balancing and failover. Members of a group share a secret key, maintain a consistent replicated state through a modified Raft consensus protocol, and stay connected via an all-to-all mesh of persistent <strong>bonds</strong>.</p>
-<h2 id="overview-4"><a class="header" href="#overview-4">Overview</a></h2>
+<h2 id="overview-5"><a class="header" href="#overview-5">Overview</a></h2>
 <pre><code>          ┌──────────┐
           │  Node A   │
           │ (Leader)  │
@@ -6006,7 +6188,7 @@ enabling hardware-attested identity and access control across the network. TEE
 support is built on top of the existing <a href="#auth-tickets">Auth Tickets</a>
 system — nodes running inside a TEE generate cryptographic attestation tickets
 that other nodes can validate before establishing connections.</p>
-<h2 id="overview-5"><a class="header" href="#overview-5">Overview</a></h2>
+<h2 id="overview-6"><a class="header" href="#overview-6">Overview</a></h2>
 <p>In a TEE-enabled mosaik network, nodes can:</p>
 <ol>
 <li><strong>Generate attestation tickets</strong> — a node running inside a TEE produces a
@@ -6952,7 +7134,7 @@ and spawns a <code>BondWorker</code> if accepted.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="state-synchronization-1"><a class="header" href="#state-synchronization-1">State Synchronization</a></h1>
 <p>When a new peer joins a group or falls too far behind the leader’s log, it needs to catch up to the current committed state before it can participate as a voting member. Mosaik provides a pluggable state synchronization framework through the <code>StateSync</code> trait, with two built-in implementations.</p>
-<h2 id="overview-6"><a class="header" href="#overview-6">Overview</a></h2>
+<h2 id="overview-7"><a class="header" href="#overview-7">Overview</a></h2>
 <p>State sync is triggered when a follower receives an <code>AppendEntries</code> message whose preceding log position does not match the follower’s local log — indicating a gap. At that point the group creates a <strong>sync session</strong> on the lagging follower and the session drives the catch-up process to completion.</p>
 <pre><code class="language-text">Follower detects gap
         │
@@ -7434,6 +7616,7 @@ let network = Network::builder()
 <tr><td><code>secret_key</code></td><td><code>SecretKey</code></td><td>random</td><td>Ed25519 key for peer identity</td></tr>
 <tr><td><code>discovery</code></td><td><code>DiscoveryConfigBuilder</code></td><td>see below</td><td>Nested discovery config</td></tr>
 <tr><td><code>streams</code></td><td><code>StreamsConfigBuilder</code></td><td>see below</td><td>Nested streams config</td></tr>
+<tr><td><code>functions</code></td><td><code>FunctionsConfigBuilder</code></td><td>see below</td><td>Nested functions config</td></tr>
 <tr><td><code>groups</code></td><td><code>GroupsConfigBuilder</code></td><td>see below</td><td>Nested groups config</td></tr>
 <tr><td><code>prometheus_addr</code></td><td><code>Option&lt;SocketAddr&gt;</code></td><td><code>None</code></td><td>Prometheus HTTP exporter address (<code>prometheus</code> feature)</td></tr>
 </tbody>
@@ -7496,6 +7679,21 @@ Network::builder()
         max_elapsed_time: Some(Duration::from_secs(120)),
         ..Default::default()
     }))</code></pre>
+<hr>
+<h2 id="functionsconfig"><a class="header" href="#functionsconfig"><code>functions::Config</code></a></h2>
+<p>Controls function call defaults.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>call_timeout</code></td><td><code>Duration</code></td><td>30 s</td><td>Default end-to-end call timeout (discovery wait + connect + invoke + failover)</td></tr>
+</tbody>
+</table>
+</div>
+<p>The timeout can be overridden per caller with <code>with_call_timeout</code> and per
+call with <code>call_with_timeout</code>.</p>
 <hr>
 <h2 id="groupsconfig"><a class="header" href="#groupsconfig"><code>groups::Config</code></a></h2>
 <p>Controls bond establishment.</p>
@@ -7699,6 +7897,23 @@ with the current metrics in Prometheus text exposition format.</p>
 </tbody>
 </table>
 </div>
+<h3 id="functions-1"><a class="header" href="#functions-1">Functions</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Type</th><th>Labels</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mosaik.functions.handlers.active</code></td><td>Gauge</td><td><code>network</code></td><td>Registered function handlers on this node</td></tr>
+<tr><td><code>mosaik.functions.calls.accepted</code></td><td>Counter</td><td><code>network</code></td><td>Incoming calls admitted for dispatch</td></tr>
+<tr><td><code>mosaik.functions.calls.rejected</code></td><td>Counter</td><td><code>network</code></td><td>Incoming calls rejected before dispatch</td></tr>
+<tr><td><code>mosaik.functions.calls.completed</code></td><td>Counter</td><td><code>network</code> / <code>function</code></td><td>Calls that produced a reply (handler/caller)</td></tr>
+<tr><td><code>mosaik.functions.calls.failed</code></td><td>Counter</td><td><code>network</code></td><td>Calls that failed with a handler-side fault</td></tr>
+<tr><td><code>mosaik.functions.calls.inflight</code></td><td>Gauge</td><td><code>network</code></td><td>Calls currently executing on this node</td></tr>
+<tr><td><code>mosaik.functions.calls.attempts</code></td><td>Counter</td><td><code>function</code>, <code>network</code></td><td>Outbound call attempts (incl. failover)</td></tr>
+</tbody>
+</table>
+</div>
 <h3 id="collections-3"><a class="header" href="#collections-3">Collections</a></h3>
 <div class="table-wrapper">
 <table>
@@ -7757,6 +7972,7 @@ every public error type.</p>
 <tr><td><code>InvalidAddress(InvalidSocketAddr)</code></td><td>An address in <code>addresses</code> is invalid</td></tr>
 <tr><td><code>DiscoveryConfig(ConfigBuilderError)</code></td><td>Discovery config builder failed validation</td></tr>
 <tr><td><code>StreamsConfig(ConfigBuilderError)</code></td><td>Streams config builder failed validation</td></tr>
+<tr><td><code>FunctionsConfig(ConfigBuilderError)</code></td><td>Functions config builder failed validation</td></tr>
 <tr><td><code>GroupsConfig(ConfigBuilderError)</code></td><td>Groups config builder failed validation</td></tr>
 </tbody>
 </table>
@@ -7862,6 +8078,28 @@ without re-creating the data:</p>
 </table>
 </div>
 <p>All variants carry the datum back when possible, enabling retry.</p>
+<h2 id="call-errors"><a class="header" href="#call-errors">Call errors</a></h2>
+<p><code>functions::CallError&lt;E&gt;</code> — returned by <code>Caller::call()</code> and
+<code>call_with_timeout()</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variant</th><th>Recoverable?</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Application(E)</code></td><td>No</td><td>The function ran and returned its typed error — never triggers failover</td></tr>
+<tr><td><code>Timeout</code></td><td><strong>Yes</strong></td><td>Handlers existed but no attempt completed within the timeout</td></tr>
+<tr><td><code>Unavailable</code></td><td><strong>Yes</strong></td><td>No eligible handler appeared in the catalog within the timeout</td></tr>
+<tr><td><code>Rejected(close)</code></td><td>Depends</td><td>Every attempted handler rejected the call; carries the last close reason</td></tr>
+<tr><td><code>Transport(error)</code></td><td><strong>Yes</strong></td><td>Every attempted handler failed at the transport level; carries the last one</td></tr>
+<tr><td><code>Encode(error)</code></td><td>No</td><td>The request payload could not be encoded</td></tr>
+<tr><td><code>Decode(error)</code></td><td>No</td><td>The reply payload could not be decoded</td></tr>
+</tbody>
+</table>
+</div>
+<p>Failover across eligible handlers happens <em>inside</em> a single <code>call()</code> —
+these errors surface only after the whole call (including retries against
+other candidates) has failed.</p>
 <h2 id="close-reasons-quic-application-codes"><a class="header" href="#close-reasons-quic-application-codes">Close reasons (QUIC application codes)</a></h2>
 <p>Mosaik uses typed <strong>close reasons</strong> for QUIC <code>ApplicationClose</code> codes. These
 are generated with the <code>make_close_reason!</code> macro and appear in connection
@@ -7893,6 +8131,20 @@ close frames.</p>
 <tr><td><code>UnexpectedClose</code></td><td>103</td><td>Unexpected connection close</td></tr>
 <tr><td><code>ProtocolViolation</code></td><td>400</td><td>Protocol message violation</td></tr>
 <tr><td><code>UnknownPeer</code></td><td>401</td><td>Peer not found in discovery catalog</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="functions-close-reasons"><a class="header" href="#functions-close-reasons">Functions close reasons</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Name</th><th>Code</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>NotAllowed</code></td><td>11,403</td><td>Caller not authorized to invoke the function</td></tr>
+<tr><td><code>FunctionNotFound</code></td><td>11,404</td><td>No handler registered for the requested function id</td></tr>
+<tr><td><code>HandlerFailure</code></td><td>11,500</td><td>Handler-side fault while producing the reply</td></tr>
+<tr><td><code>NoCapacity</code></td><td>11,509</td><td>Handler reached its maximum number of concurrent calls</td></tr>
 </tbody>
 </table>
 </div>

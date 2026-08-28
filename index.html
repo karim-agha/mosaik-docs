@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-49c8e102.js";
+            window.path_to_searchindex_js = "searchindex-e179421a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-bfbcddc8.js"></script>
+        <script src="toc-8ad75da6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -188,7 +188,7 @@
   <a href="https://github.com/flashbots/mosaik"><img alt="Status" src="https://img.shields.io/badge/status-experimental-orange.svg"></a>
 </p>
 
-<p><strong><a href="https://mosaik.rs">Mosaik</a></strong> is a Rust runtime for building <strong>self-organizing, leaderless distributed systems</strong>. It is designed for trusted, permissioned networks — environments where all participating nodes are assumed honest, such as L2 blockchain infrastructure operated by a single organization.</p>
+<p><strong><a href="https://github.com/flashbots/mosaik">Mosaik</a></strong> is a Rust runtime for building <strong>self-organizing, leaderless distributed systems</strong>. It is designed for trusted, permissioned networks — environments where all participating nodes are assumed honest, such as L2 blockchain infrastructure operated by a single organization.</p>
 <h2 id="what-mosaik-does"><a class="header" href="#what-mosaik-does">What Mosaik Does</a></h2>
 <p>When you deploy mosaik-based binaries on arbitrary machines, the network <strong>self-organizes</strong>: nodes discover each other via gossip, infer the data-flow topology, elect leaders where needed, and converge to a stable operational state. Each node needs only a <strong>network ID</strong> to participate — a string that identifies which logical network to join. Mosaik automatically discovers peers via <a href="https://en.wikipedia.org/wiki/Mainline_DHT">Mainline DHT</a>, requiring no manual configuration. A bootstrap peer can optionally be provided to speed up initial discovery or when DHT discovery is disabled (the <a href="https://github.com/flashbots/mosaik/blob/main/examples/bootstrap.rs">bootstrap example</a> can be used as a universal bootstrap node in production).</p>
 <p>A secret key is automatically generated on each run, giving the node a unique identity. Specifying a fixed secret key is only recommended for bootstrap nodes that need a stable, well-known peer ID across restarts.</p>

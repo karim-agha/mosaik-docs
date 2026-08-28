@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-49c8e102.js";
+            window.path_to_searchindex_js = "../searchindex-e179421a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bfbcddc8.js"></script>
+        <script src="../toc-8ad75da6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -269,6 +269,23 @@ with the current metrics in Prometheus text exposition format.</p>
 <tr><td><code>mosaik.streams.consumer.bytes.received</code></td><td>Counter</td><td><code>stream</code>, <code>network</code></td><td>Bytes received by consumers</td></tr>
 <tr><td><code>mosaik.streams.datums.total</code></td><td>Counter</td><td>—</td><td>Global datums transmitted (all streams)</td></tr>
 <tr><td><code>mosaik.streams.bytes.total</code></td><td>Counter</td><td>—</td><td>Global bytes transmitted (all streams)</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="functions"><a class="header" href="#functions">Functions</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Type</th><th>Labels</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mosaik.functions.handlers.active</code></td><td>Gauge</td><td><code>network</code></td><td>Registered function handlers on this node</td></tr>
+<tr><td><code>mosaik.functions.calls.accepted</code></td><td>Counter</td><td><code>network</code></td><td>Incoming calls admitted for dispatch</td></tr>
+<tr><td><code>mosaik.functions.calls.rejected</code></td><td>Counter</td><td><code>network</code></td><td>Incoming calls rejected before dispatch</td></tr>
+<tr><td><code>mosaik.functions.calls.completed</code></td><td>Counter</td><td><code>network</code> / <code>function</code></td><td>Calls that produced a reply (handler/caller)</td></tr>
+<tr><td><code>mosaik.functions.calls.failed</code></td><td>Counter</td><td><code>network</code></td><td>Calls that failed with a handler-side fault</td></tr>
+<tr><td><code>mosaik.functions.calls.inflight</code></td><td>Gauge</td><td><code>network</code></td><td>Calls currently executing on this node</td></tr>
+<tr><td><code>mosaik.functions.calls.attempts</code></td><td>Counter</td><td><code>function</code>, <code>network</code></td><td>Outbound call attempts (incl. failover)</td></tr>
 </tbody>
 </table>
 </div>

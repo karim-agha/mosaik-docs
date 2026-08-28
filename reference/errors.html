@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-49c8e102.js";
+            window.path_to_searchindex_js = "../searchindex-e179421a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bfbcddc8.js"></script>
+        <script src="../toc-8ad75da6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -197,6 +197,7 @@ every public error type.</p>
 <tr><td><code>InvalidAddress(InvalidSocketAddr)</code></td><td>An address in <code>addresses</code> is invalid</td></tr>
 <tr><td><code>DiscoveryConfig(ConfigBuilderError)</code></td><td>Discovery config builder failed validation</td></tr>
 <tr><td><code>StreamsConfig(ConfigBuilderError)</code></td><td>Streams config builder failed validation</td></tr>
+<tr><td><code>FunctionsConfig(ConfigBuilderError)</code></td><td>Functions config builder failed validation</td></tr>
 <tr><td><code>GroupsConfig(ConfigBuilderError)</code></td><td>Groups config builder failed validation</td></tr>
 </tbody>
 </table>
@@ -302,6 +303,28 @@ without re-creating the data:</p>
 </table>
 </div>
 <p>All variants carry the datum back when possible, enabling retry.</p>
+<h2 id="call-errors"><a class="header" href="#call-errors">Call errors</a></h2>
+<p><code>functions::CallError&lt;E&gt;</code> — returned by <code>Caller::call()</code> and
+<code>call_with_timeout()</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variant</th><th>Recoverable?</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Application(E)</code></td><td>No</td><td>The function ran and returned its typed error — never triggers failover</td></tr>
+<tr><td><code>Timeout</code></td><td><strong>Yes</strong></td><td>Handlers existed but no attempt completed within the timeout</td></tr>
+<tr><td><code>Unavailable</code></td><td><strong>Yes</strong></td><td>No eligible handler appeared in the catalog within the timeout</td></tr>
+<tr><td><code>Rejected(close)</code></td><td>Depends</td><td>Every attempted handler rejected the call; carries the last close reason</td></tr>
+<tr><td><code>Transport(error)</code></td><td><strong>Yes</strong></td><td>Every attempted handler failed at the transport level; carries the last one</td></tr>
+<tr><td><code>Encode(error)</code></td><td>No</td><td>The request payload could not be encoded</td></tr>
+<tr><td><code>Decode(error)</code></td><td>No</td><td>The reply payload could not be decoded</td></tr>
+</tbody>
+</table>
+</div>
+<p>Failover across eligible handlers happens <em>inside</em> a single <code>call()</code> —
+these errors surface only after the whole call (including retries against
+other candidates) has failed.</p>
 <h2 id="close-reasons-quic-application-codes"><a class="header" href="#close-reasons-quic-application-codes">Close reasons (QUIC application codes)</a></h2>
 <p>Mosaik uses typed <strong>close reasons</strong> for QUIC <code>ApplicationClose</code> codes. These
 are generated with the <code>make_close_reason!</code> macro and appear in connection
@@ -333,6 +356,20 @@ close frames.</p>
 <tr><td><code>UnexpectedClose</code></td><td>103</td><td>Unexpected connection close</td></tr>
 <tr><td><code>ProtocolViolation</code></td><td>400</td><td>Protocol message violation</td></tr>
 <tr><td><code>UnknownPeer</code></td><td>401</td><td>Peer not found in discovery catalog</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="functions-close-reasons"><a class="header" href="#functions-close-reasons">Functions close reasons</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Name</th><th>Code</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>NotAllowed</code></td><td>11,403</td><td>Caller not authorized to invoke the function</td></tr>
+<tr><td><code>FunctionNotFound</code></td><td>11,404</td><td>No handler registered for the requested function id</td></tr>
+<tr><td><code>HandlerFailure</code></td><td>11,500</td><td>Handler-side fault while producing the reply</td></tr>
+<tr><td><code>NoCapacity</code></td><td>11,509</td><td>Handler reached its maximum number of concurrent calls</td></tr>
 </tbody>
 </table>
 </div>
